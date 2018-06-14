@@ -80,7 +80,6 @@ public class DesignerUI : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
         // Initialize the manager.
-        this.manager = FindObjectOfType<DesignerManager>();
         this.ToggleExpand(false);
 
         // Make sure all menus are closed.

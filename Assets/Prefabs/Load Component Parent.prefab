@@ -23,7 +23,7 @@ GameObject:
   - component: {fileID: 114699916930874452}
   - component: {fileID: 114007518810001366}
   m_Layer: 5
-  m_Name: Load Option Parent
+  m_Name: Load Component Parent
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

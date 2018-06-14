@@ -185,3 +185,10 @@ public class Vertex {
         return bisect;
     }
 }
+
+[System.Serializable]
+public class VertexData {
+    public float x;
+    public float y;
+    public bool locked;
+}

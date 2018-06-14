@@ -134,9 +134,42 @@ public class Component {
         cData.vertData = vData;
         cData.connData = connData;
 
+        // If we have a mesh, we need to write where it will be located before we close this file stream.
+        if (this.componentMesh.vertices.Length != 0) {
+            cData.meshPath = Application.persistentDataPath + savePath + "/Meshes/" + this.componentName + ".dat";
+        }
+        else
+            cData.meshPath = null;
+
         // Serialize the object and close the stream.
         bf.Serialize(file, cData);
         file.Close();
+
+        // If we have a mesh, we will write its data out.
+        if (this.componentMesh.vertices.Length != 0) {
+            // Save the mesh.
+            if (!Directory.Exists(Application.persistentDataPath + _path + "Meshes/")) {
+                Directory.CreateDirectory(Application.persistentDataPath + _path + "Meshes/");
+            }
+
+            // Now to write out the mesh data.
+            file = File.Open(Application.persistentDataPath + savePath + "Meshes/" + this.componentName + ".dat", FileMode.Create);
+
+            MeshData mData = new MeshData();
+            mData.meshIndices.AddRange(this.componentMesh.GetIndices(0));
+            // Convert the normal vec3s to serialized vec3s.
+            Vector3[] verts = this.componentMesh.vertices;
+            foreach (Vector3 v in verts)
+                mData.meshVertices.Add(v);
+            
+            // Serialize the object and close the stream.
+            bf.Serialize(file, mData);
+            file.Close();
+        }
+        else {
+            // Otherwise, we will leave the meshPath as null.
+            cData.meshPath = null;
+        }
 
         return "SAVED";
     }
@@ -179,6 +212,36 @@ public class Component {
             this.connections.Add(temp);
         }
 
+        // See if the mesh data exists.
+        if (cData.meshPath != null && File.Exists(cData.meshPath)) {
+
+            // Load in the mesh data now.
+            // Create the binary stream.
+            bf = new BinaryFormatter();
+            file = File.Open(cData.meshPath, FileMode.Open);
+
+            // Read in the mesh data.
+            MeshData mData = (MeshData) bf.Deserialize(file);
+
+            // Create a mesh and pass it in the data.
+            Mesh m = new Mesh();
+            // Convert the serialized vec3s to normal vec3s.
+            List<Vector3> verts = new List<Vector3>();
+            foreach (SerializableVector3 v in mData.meshVertices)
+                verts.Add(v);
+
+            m.SetVertices(verts);
+            m.SetTriangles(mData.meshIndices, 0);
+
+            // Calculate additional parts of the mesh.
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            m.RecalculateTangents();
+
+            // Set the component's mesh.
+            this.componentMesh = m;
+        }
+
         /*
         StreamReader reader;
         using (reader = File.OpenText(_path)) {
@@ -210,22 +273,46 @@ public class Component {
 
 [Serializable]
 public class ComponentData {
+    public ComponentData () {
+        this.vertData = new List<VertexData>();
+        this.connData = new List<ConnectionData>();
+    }
+
     public string name;
+    public string meshPath;
 
     public List<VertexData> vertData;
     public List<ConnectionData> connData;
 }
 
 [Serializable]
-public class VertexData {
-    public float x;
-    public float y;
-    public bool locked;
+public class MeshData {
+    public MeshData () {
+        this.meshIndices = new List<int>();
+        this.meshVertices = new List<SerializableVector3>();
+    }
+
+    public List<int> meshIndices;
+    public List<SerializableVector3> meshVertices;
 }
 
 [Serializable]
-public class ConnectionData {
-    public int first;
-    public int second;
-    public int type;
+public class SerializableVector3 {
+    float x;
+    float y;
+    float z;
+
+    public SerializableVector3 (float _x, float _y, float _z) {
+        this.x = _x;
+        this.y = _y;
+        this.z = _z;
+    }
+
+    public static implicit operator Vector3 (SerializableVector3 _vec3) {
+        return new Vector3(_vec3.x, _vec3.y, _vec3.z);
+    }
+
+    public static implicit operator SerializableVector3 (Vector3 _vec3) {
+        return new SerializableVector3(_vec3.x, _vec3.y, _vec3.z);
+    }
 }

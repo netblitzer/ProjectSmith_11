@@ -162,6 +162,15 @@ public class DesignerManager : MonoBehaviour {
                 DebugLines.Instance.AddLine(c.First.Location, c.Second.Location, new Color(0, 1, 1));
             else if (c.Edge == EdgeType.SHARP)
                 DebugLines.Instance.AddLine(c.First.Location, c.Second.Location, new Color(0.8f, 0, 0.8f));
+
+            if (c.ConnectionCanBeAttachedTo) {
+                Vector2 loc = c.MidPoint;
+
+                DebugLines.Instance.AddLine(new Vector2(loc.x - 0.2f, loc.y), new Vector2(loc.x, loc.y + 0.2f), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x, loc.y + 0.2f), new Vector2(loc.x + 0.2f, loc.y), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x + 0.2f, loc.y), new Vector2(loc.x, loc.y - 0.2f), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x, loc.y - 0.2f), new Vector2(loc.x - 0.2f, loc.y), Color.blue);
+            }
         }
     }
 
@@ -454,6 +463,8 @@ public class DesignerManager : MonoBehaviour {
 
         if (curLine != -1) {
             this.currentComponent.connections[curLine].Edge = _type;
+
+            this.currentComponent.connections[curLine].CheckIfCanBeAttachedTo();
 
             // Set that there has been a change since the last save.
             this.changesSinceLastSave = true;

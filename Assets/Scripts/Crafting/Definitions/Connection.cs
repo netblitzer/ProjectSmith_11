@@ -3,20 +3,29 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class Connection {
-    
+
+    // The first vertex in this connection.
     public Vertex First;
-    
+
+    // The second vertex in this connection.
     public Vertex Second;
 
+    // What type of edge this connection is.
     public EdgeType Edge;
 
+    // Whether the connection can be modified/deleted.
     public bool IsConnectionLocked;
+
+    public bool ConnectionCanBeAttachedTo { get; private set; }
 
     // The direction of this connection. (normalized)
     public Vector2 Direction;
 
     // The normal directon of this connection. (normalized)
     public Vector2 Normal;
+
+    // The point in between the two vertices.
+    public Vector2 MidPoint;
 
     // The length of this connection.
     public float Length;
@@ -64,6 +73,13 @@ public class Connection {
         this.Length = this.Direction.magnitude;
         this.Direction.Normalize();
         this.Normal = new Vector2(this.Direction.y, -this.Direction.x);
+
+        this.MidPoint = (this.First.Location + this.Second.Location) / 2f;
+
+        if (this.Length >= 1f && this.Edge == EdgeType.FLAT)
+            this.ConnectionCanBeAttachedTo = true;
+        else
+            this.ConnectionCanBeAttachedTo = false;
     }
 
     public void FlipConnection () {
@@ -73,4 +89,21 @@ public class Connection {
             this.First = temp;
         }
     }
+
+    public bool CheckIfCanBeAttachedTo () {
+
+        if (this.Length >= 1f && this.Edge == EdgeType.FLAT)
+            this.ConnectionCanBeAttachedTo = true;
+        else
+            this.ConnectionCanBeAttachedTo = false;
+
+        return this.ConnectionCanBeAttachedTo;
+    }
+}
+
+[System.Serializable]
+public class ConnectionData {
+    public int first;
+    public int second;
+    public int type;
 }

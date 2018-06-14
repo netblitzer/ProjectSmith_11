@@ -64,10 +64,13 @@ public class LoadOption : MonoBehaviour {
     }
 
     public void LoadOptionClicked () {
-        // Find the main designerUI.
+        // Find the UI object in the scene.
         DesignerUI dui = FindObjectOfType<DesignerUI>();
-
+        ForgerUI fui = FindObjectOfType<ForgerUI>();
         // Tell it that this option was clicked.
-        dui.LoadOptionClicked(this);
+        if (dui != null)
+            dui.LoadOptionClicked(this);
+        else if (fui != null)
+            fui.LoadOptionClicked(this);
     }
 }
