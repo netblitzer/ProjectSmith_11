@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 2
   tags:
   - DesignSpace
+  - UIManager
   layers:
   - Default
   - TransparentFX

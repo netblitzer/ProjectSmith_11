@@ -194,6 +194,9 @@ public class Component {
 
         // Close the file.
         file.Close();
+
+        // Load in basic properties.
+        this.componentName = cData.name;
         
         // Load in all the vertices.
         for (int i = 0; i < cData.vertData.Count; i++) {

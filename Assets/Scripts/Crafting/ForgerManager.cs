@@ -5,7 +5,9 @@ using UnityEngine;
 
 public class ForgerManager : MonoBehaviour {
 
-    public Vector3 componentStartingPosition;
+    public GameObject weaponRoot;
+
+    public GameObject currentSelectedComponent;
 
     public GameObject baseRenderedComponentPrefab;
 
@@ -22,8 +24,6 @@ public class ForgerManager : MonoBehaviour {
         // Initialize lists.
         this.activeComponents = new List<Component>();
         this.activeRenderedComponentObjects = new List<GameObject>();
-
-        this.componentStartingPosition = new Vector3(0, 0, 0);
 	}
 	
 	// Update is called once per frame
@@ -85,8 +85,11 @@ public class ForgerManager : MonoBehaviour {
             // Create the mesh representation of the component.
             GameObject temp = GameObject.Instantiate(this.baseRenderedComponentPrefab);
             temp.GetComponent<MeshFilter>().mesh = c.componentMesh;
-            temp.transform.position = this.componentStartingPosition;
+            temp.transform.position = Vector3.zero;
             temp.name = c.componentName;
+
+            // Make it a child of the root object.
+            temp.transform.SetParent(this.weaponRoot.transform);
 
             // Add the mesh to the list.
             this.activeRenderedComponentObjects.Add(temp);
