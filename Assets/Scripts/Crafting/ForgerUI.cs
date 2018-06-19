@@ -10,8 +10,6 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
     public ForgerManager manager;
 
-    public Camera mainSceneCamera;
-
 
     // -----/ Internal Mode Information /-----
 
@@ -25,6 +23,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
     private bool isRightMouseDown;
 
+
+    // -----/ Camera Control Information /-----
+
+    public Camera mainSceneCamera;
+
     private Vector3 cameraRotation;
 
     private Vector3 cameraLookPosition;
@@ -32,6 +35,8 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     private Vector3 lastMousePosition;
 
     private Vector3 mouseMoveAmount;
+
+    public GameObject cameraDirectionIndicator;
 
 
     // -----/ UI Saving Elements /-----
@@ -56,8 +61,17 @@ public class ForgerUI : MonoBehaviour, IUIManager {
         // Make sure all menus are closed.
         this.ToggleLoadMenu(false);
 
+        // Set up camera properties.
         this.cameraLookPosition = new Vector3(0, 0, 0);
         this.cameraRotation = mainSceneCamera.transform.rotation.eulerAngles;
+        // Place the camera indicator in the correct location.
+        float frustumHeight = 1.0f * Mathf.Tan(this.mainSceneCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        Vector3 indicatorPos = new Vector3(frustumHeight * this.mainSceneCamera.aspect, frustumHeight, 1f);
+        float minScreenDimension = Mathf.Min(indicatorPos.x, indicatorPos.y);
+        indicatorPos.x -= minScreenDimension * 0.15f;
+        indicatorPos.y -= minScreenDimension * 0.15f;
+        this.cameraDirectionIndicator.transform.localPosition = indicatorPos;
+        this.cameraDirectionIndicator.transform.localScale = new Vector3(minScreenDimension * 0.075f, minScreenDimension * 0.075f, minScreenDimension * 0.075f);
     }
 	
 	// Update is called once per frame
@@ -83,6 +97,9 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
             // Clamp the vertical camera rotation.
             this.cameraRotation.x = Mathf.Clamp(this.cameraRotation.x, -85f, 85f);
+
+            // Rotate the indicator to continue to be "level".
+            this.cameraDirectionIndicator.transform.rotation = Quaternion.identity;
 
             // Reset the mouse movement amount.
             this.mouseMoveAmount = Vector3.zero;

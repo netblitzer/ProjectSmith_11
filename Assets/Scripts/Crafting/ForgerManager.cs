@@ -84,9 +84,15 @@ public class ForgerManager : MonoBehaviour {
 
             // Create the mesh representation of the component.
             GameObject temp = GameObject.Instantiate(this.baseRenderedComponentPrefab);
-            temp.GetComponent<MeshFilter>().mesh = c.componentMesh;
+            MeshFilter mFilter = temp.GetComponent<MeshFilter>();
+            mFilter.mesh = c.componentMesh;
+
             temp.transform.position = Vector3.zero;
             temp.name = c.componentName;
+
+            // Get the collider and set it.
+            MeshCollider mCol = temp.GetComponent<MeshCollider>();
+            mCol.sharedMesh = mFilter.mesh;
 
             // Make it a child of the root object.
             temp.transform.SetParent(this.weaponRoot.transform);
