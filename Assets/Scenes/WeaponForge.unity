@@ -1132,6 +1132,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   manager: {fileID: 663125127}
   currentMode: 0
+  currentActiveObject: {fileID: 0}
+  IsAnObjectSelected: 0
+  hoverColor: {r: 1, g: 0.9982565, b: 0.7764706, a: 1}
+  indicatorHoverColor: {r: 0.735849, g: 0.735849, b: 0.735849, a: 0}
+  selectedColor: {r: 1, g: 1, b: 1, a: 0.7058824}
+  invalidColor: {r: 1, g: 0, b: 0, a: 0.7058824}
   mainSceneCamera: {fileID: 2066074757}
   cameraDirectionIndicator: {fileID: 1838466088}
   fileAlreadyExistsParent: {fileID: 0}

@@ -73,7 +73,7 @@ public class ForgerManager : MonoBehaviour {
         return options;
     }
 
-    public string LoadSelectedComponent (string _path) {
+    public string LoadSelectedComponent (string _path, out GameObject _component) {
         // If we're not saving or there aren't changes to save, just load up the component.
         Component c = new Component();
         if (c.LoadComponent(_path)) {
@@ -83,26 +83,27 @@ public class ForgerManager : MonoBehaviour {
             this.activeComponents.Add(c);
 
             // Create the mesh representation of the component.
-            GameObject temp = GameObject.Instantiate(this.baseRenderedComponentPrefab);
-            MeshFilter mFilter = temp.GetComponent<MeshFilter>();
+            _component = GameObject.Instantiate(this.baseRenderedComponentPrefab);
+            MeshFilter mFilter = _component.GetComponent<MeshFilter>();
             mFilter.mesh = c.componentMesh;
 
-            temp.transform.position = Vector3.zero;
-            temp.name = c.componentName;
+            _component.transform.position = Vector3.zero;
+            _component.name = c.componentName;
 
             // Get the collider and set it.
-            MeshCollider mCol = temp.GetComponent<MeshCollider>();
+            MeshCollider mCol = _component.GetComponent<MeshCollider>();
             mCol.sharedMesh = mFilter.mesh;
 
             // Make it a child of the root object.
-            temp.transform.SetParent(this.weaponRoot.transform);
+            _component.transform.SetParent(this.weaponRoot.transform);
 
             // Add the mesh to the list.
-            this.activeRenderedComponentObjects.Add(temp);
+            this.activeRenderedComponentObjects.Add(_component);
 
             return "LOADED";
         }
 
+        _component = null;
         return "FAILED";
     }
 }

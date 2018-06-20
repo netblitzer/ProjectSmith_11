@@ -16,12 +16,34 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     // What mode the forging UI is currently in.
     public ForgerMode currentMode;
 
+    private List<ComponentObject> components;
+
     // Whether the mouse is currently hovering over the design space.
     private bool isCurrentlyHovering;
 
     private bool isLeftMouseDown;
 
     private bool isRightMouseDown;
+
+
+    // -----/ Hovering and Selection Information /-----
+
+    // The object that is currently being hovered over by the mouse (if any) or selected/dragged.
+    public GameObject currentActiveObject;
+
+    // Whether there is currently an object selected and being manipulated.
+    public bool IsAnObjectSelected;
+
+    // How far away the object was from the camera when it was selected, OR how far to keep the object from the camera.
+    public float selectedDistFromCamera;
+
+    public Color hoverColor;
+
+    public Color indicatorHoverColor;
+
+    public Color selectedColor;
+
+    public Color invalidColor;
 
 
     // -----/ Camera Control Information /-----
@@ -32,10 +54,13 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
     private Vector3 cameraLookPosition;
 
+    // The last mouse position on the screen.
     private Vector3 lastMousePosition;
 
+    // The amount the mouse moved in the last frame while the right mouse was held.
     private Vector3 mouseMoveAmount;
 
+    // The cube in the top right corner to indicate where the camera is looking.
     public GameObject cameraDirectionIndicator;
 
 
@@ -58,6 +83,9 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
     // Use this for initialization
     void Start () {
+        // Instantiate lists.
+        this.components = new List<ComponentObject>();
+
         // Make sure all menus are closed.
         this.ToggleLoadMenu(false);
 
@@ -77,8 +105,12 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 	// Update is called once per frame
 	void Update () {
 
-        if (this.isCurrentlyHovering) {
+        if (this.isCurrentlyHovering && !this.IsAnObjectSelected) {
             this.HandleMouseHovering(null);
+        }
+
+        if (this.IsAnObjectSelected) {
+            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
         }
 
         // Handle camera movement.
@@ -125,6 +157,14 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                 break;
             case ForgerMode.IDLE:
             default:
+                // If we're in idle and click without anything selected, check if we're selecting a component.
+                if (!this.IsAnObjectSelected) {
+                    this.SelectObject(this.mainSceneCamera.ScreenPointToRay(_eventData.position));
+                }
+                else {
+                    // If we're clicking with something already selected, we should unselect it.
+                    this.UnselectObject();
+                }
 
                 break;
         }
@@ -143,6 +183,60 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
         // Find out where our mouse is currently aiming.
         Ray mouseRay = this.mainSceneCamera.ScreenPointToRay(screenPos);
+        RaycastHit mouseRayHit;
+
+        if (Physics.Raycast(mouseRay, out mouseRayHit, 1000f)) {
+            // Get the object hit.
+            GameObject hit = mouseRayHit.collider.gameObject;
+
+            // See if the object is either a component or the direction indicator.
+            if (hit.GetComponent<ComponentObject>() != null || hit == this.cameraDirectionIndicator) {
+                // Get the object ComponentObject (if any).
+                ComponentObject compObj = hit.GetComponent<ComponentObject>();
+                // Make sure we're not hovering something that is already active.
+                if (hit != this.currentActiveObject) {
+                    // Reset the last object if this is a different object.
+                    if (this.currentActiveObject != null) {
+                        // Get the componentObject of the last object.
+                        ComponentObject lastCompObj = this.currentActiveObject.GetComponent<ComponentObject>();
+                        // The only option without the component object is the direction indicator.
+                        if (lastCompObj == null)
+                            this.cameraDirectionIndicator.GetComponent<Renderer>().material.color = Color.white;
+                        else {
+                            // Otherwise, reset the component's hover status.
+                            lastCompObj.SetHovered(false);
+                        }
+                    }
+
+                    // Change the new hovered.
+                    this.currentActiveObject = hit;
+
+                    // If what we hit was the indicator, give it a different color.
+                    if (this.currentActiveObject == this.cameraDirectionIndicator)
+                        this.currentActiveObject.GetComponent<Renderer>().material.color = this.indicatorHoverColor;
+                    else {
+                        // If we hit a component, set its color and that it's being hovered.
+                        compObj.SetHovered(true);
+                    }
+                }
+            }
+        }
+        else {
+            // If we're no longer hovering over anything, reset the last hovered object if it exists and it's not selected.
+            if (this.currentActiveObject != null) {
+                if (this.currentActiveObject == this.cameraDirectionIndicator)
+                    // If it's the camera indicator, just change the color back.
+                    this.currentActiveObject.GetComponent<Renderer>().material.color = Color.white;
+                else {
+                    // If it's a component, set it to not hovered and reset the color.
+                    ComponentObject compObj = this.currentActiveObject.GetComponent<ComponentObject>();
+                    compObj.SetHovered(false);
+                }
+
+                if (!IsAnObjectSelected)
+                    this.currentActiveObject = null;
+            }
+        }
     }
 
     public void OnPointerDown (PointerEventData _eventData) {
@@ -191,6 +285,55 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
     #endregion
 
+    private bool SelectObject (Ray _mouseRay) {
+
+        RaycastHit mouseRayHit;
+
+        if (Physics.Raycast(_mouseRay, out mouseRayHit, 1000f)) {
+            // Get the object hit.
+            GameObject hit = mouseRayHit.collider.gameObject;
+
+            // Get the object's ComponentObject.
+            ComponentObject compObj = hit.GetComponent<ComponentObject>();
+
+            // See if the object is a component.
+            if (hit.GetComponent<ComponentObject>() != null) {
+                // Reset the last object if there is one that was being hovered.
+                if (this.currentActiveObject != null)
+                    compObj.ResetComponent();
+
+                // Change the active object.
+                this.currentActiveObject = hit;
+
+                // Set that we have something selected.
+                this.IsAnObjectSelected = true;
+
+                // Find out how far away from the camera this object was.
+                this.selectedDistFromCamera = Vector3.Distance(this.mainSceneCamera.transform.position, hit.transform.position);
+                
+                // If we hit a component, set its color and that it's being selected.
+                compObj.SetSelected(true);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UnselectObject () {
+        if (this.IsAnObjectSelected && this.currentActiveObject != null) {
+
+            // Get the object's ComponentObject.
+            ComponentObject compObj = this.currentActiveObject.GetComponent<ComponentObject>();
+
+            // Unselect it.
+            compObj.SetSelected(false);
+            this.currentActiveObject = null;
+            this.IsAnObjectSelected = false;
+        }
+    }
+
     public void ToggleLoadMenu (bool _toggle) {
         if (_toggle) {
             // Clear all the current options in the scroll menu.
@@ -229,12 +372,73 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     public void LoadOptionClicked (LoadOption _optionClicked) {
         this.lastLoadOptionClicked = _optionClicked;
 
-        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath());
+        // Load in the new component.
+        GameObject newComp;
+        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath(), out newComp);
 
         // Clear the last clicked option.
         this.lastLoadOptionClicked = null;
 
         // Make sure the continue load menu and the load menu is closed.
         this.ToggleLoadMenu(false);
+
+        // Create and add the new component to the list of component objects that we have available.
+        ComponentObject comp = newComp.AddComponent<ComponentObject>();
+        comp.SetComponent(this, newComp);
+
+        this.components.Add(comp);
+    }
+
+    class ComponentObject : MonoBehaviour {
+        public GameObject componentObj;
+        private Color originalColor;
+        private ForgerUI forgeUI;
+
+        public bool IsObjectLocked;
+        public bool IsHovered;
+        public bool IsSelected;
+
+        public void SetComponent (ForgerUI _ui, GameObject _obj) {
+            this.SetComponent(_ui, _obj, false);
+        }
+
+        public void SetComponent (ForgerUI _ui, GameObject _obj, bool _locked) {
+            this.forgeUI = _ui;
+
+            this.componentObj = _obj;
+            this.originalColor = _obj.GetComponent<Renderer>().material.color;
+            this.IsObjectLocked = _locked;
+        }
+
+        public void SetHovered (bool _hovered) {
+            this.IsHovered = _hovered;
+            // If we're hovered but not selected, change the color to the hover color.
+            if (this.IsHovered && !this.IsSelected)
+                this.componentObj.GetComponent<Renderer>().material.color = this.forgeUI.hoverColor;
+
+            // If we're not hovered or selected, reset the color.
+            if (!this.IsHovered && !this.IsSelected)
+                this.componentObj.GetComponent<Renderer>().material.color = this.originalColor;
+        }
+
+        public void SetSelected (bool _selected) {
+            this.IsSelected = _selected;
+            
+            // If we're selected, change the color to the selected color.
+            if (this.IsSelected)
+                this.componentObj.GetComponent<Renderer>().material.color = this.forgeUI.selectedColor;
+
+            // If we're not hovered or selected, reset the color.
+            if (!this.IsHovered && !this.IsSelected)
+                this.componentObj.GetComponent<Renderer>().material.color = this.originalColor;
+        }
+
+        public void ResetComponent () {
+            this.IsSelected = false;
+            this.IsHovered = false;
+
+            this.componentObj.GetComponent<Renderer>().material.color = this.originalColor;
+        }
     }
 }
+
