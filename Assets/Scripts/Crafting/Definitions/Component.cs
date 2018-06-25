@@ -74,34 +74,6 @@ public class Component {
             return "ALREADYEXISTS";
         }
 
-        /*
-        // Save the component.
-        StreamWriter writer;
-        // First, the vertices and connections.
-        using (writer = File.CreateText(savePath + this.componentName + ".txt")) {
-            // Save the name.
-            writer.WriteLine(this.componentName);
-
-            // Write how many vertices there are and how many connections there are.
-            writer.WriteLine(this.vertices.Count);
-            writer.WriteLine(this.connections.Count);
-            writer.WriteLine();
-
-            // Save the vertices.
-            foreach (Vertex v in this.vertices) {
-                v.Save(writer);
-            }
-
-            // Save the connections.
-            foreach (Connection c in this.connections) {
-                writer.WriteLine(this.vertices.IndexOf(c.First));
-                writer.WriteLine(this.vertices.IndexOf(c.Second));
-                writer.WriteLine((int) c.Edge);
-                writer.WriteLine();
-            }
-        }
-        */
-
         // Create the binary stream.
         BinaryFormatter bf = new BinaryFormatter();
         FileStream file = File.Open(Application.persistentDataPath + savePath + this.componentName + ".dat", FileMode.Create);
@@ -244,31 +216,6 @@ public class Component {
             // Set the component's mesh.
             this.componentMesh = m;
         }
-
-        /*
-        StreamReader reader;
-        using (reader = File.OpenText(_path)) {
-            // Read in the name.
-            this.componentName = reader.ReadLine();
-            // Read in vertex and connection counts.
-            int vertCount = reader.Read();
-            int connectionCount = reader.Read();
-
-            // Load in all the vertices.
-            for (int i = 0; i < vertCount; i++) {
-                Vertex temp = new Vertex();
-                temp.Load(reader);
-                this.vertices.Add(temp);
-            }
-
-            // Load in all the connections.
-            for (int i = 0; i < connectionCount; i++) {
-                Connection temp = new Connection();
-                temp.SetConnection(this.vertices[reader.Read()], this.vertices[reader.Read()], (EdgeType) reader.Read());
-                this.connections.Add(temp);
-            }
-        }
-        */
 
         return true;
     }
