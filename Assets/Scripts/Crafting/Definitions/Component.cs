@@ -11,6 +11,8 @@ public class Component {
 
     public List<Connection> connections;
 
+    public List<ComponentAttachmentPoint> attachPoints;
+
     public Mesh componentMesh;
 
     public string componentName;
@@ -198,6 +200,9 @@ public class Component {
             // Read in the mesh data.
             MeshData mData = (MeshData) bf.Deserialize(file);
 
+            // Close the file.
+            file.Close();
+
             // Create a mesh and pass it in the data.
             Mesh m = new Mesh();
             // Convert the serialized vec3s to normal vec3s.
@@ -244,25 +249,4 @@ public class MeshData {
 
     public List<int> meshIndices;
     public List<SerializableVector3> meshVertices;
-}
-
-[Serializable]
-public class SerializableVector3 {
-    float x;
-    float y;
-    float z;
-
-    public SerializableVector3 (float _x, float _y, float _z) {
-        this.x = _x;
-        this.y = _y;
-        this.z = _z;
-    }
-
-    public static implicit operator Vector3 (SerializableVector3 _vec3) {
-        return new Vector3(_vec3.x, _vec3.y, _vec3.z);
-    }
-
-    public static implicit operator SerializableVector3 (Vector3 _vec3) {
-        return new SerializableVector3(_vec3.x, _vec3.y, _vec3.z);
-    }
 }

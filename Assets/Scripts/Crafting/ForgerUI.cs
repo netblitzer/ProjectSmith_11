@@ -111,7 +111,18 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
         // If we currently have an object selected and we're manipulating it.
         if (this.IsAnObjectSelected) {
-            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+            // Check if we're deleting this object first.
+            if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.Backspace)) {
+                // If the delete or backspace key is pressed, destroy the object and remove it from any instances.
+                ComponentObject comp = this.currentActiveObject.GetComponent<ComponentObject>();
+                this.components.Remove(comp);
+                Destroy(this.currentActiveObject);
+                this.currentActiveObject = null;
+                this.IsAnObjectSelected = false;
+            }
+            else {
+                this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+            }
         }
 
         // Handle camera movement.
@@ -382,11 +393,12 @@ public class ForgerUI : MonoBehaviour, IUIManager {
 
         // Make sure the continue load menu and the load menu is closed.
         this.ToggleLoadMenu(false);
+        
+        // Set the componentObject's ui to this.
+        ComponentObject comp = newComp.GetComponent<ComponentObject>();
+        comp.SetUI(this);
 
-        // Create and add the new component to the list of component objects that we have available.
-        ComponentObject comp = newComp.AddComponent<ComponentObject>();
-        comp.SetComponent(this, newComp);
-
+        // Add the component to the list.
         this.components.Add(comp);
     }
 }

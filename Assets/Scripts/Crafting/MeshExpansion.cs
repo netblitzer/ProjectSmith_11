@@ -135,6 +135,12 @@ public class MeshExpansion {
         /// center, but the left doesn't want to merge with right, there will be an issue. The left
         /// point will first merge with the center, moving them and DELETING the center, then when
         /// the right tries to merge the center point no longer exists.
+        /// 4.1) Possible solution: There's no need to merge points that are too close together if 
+        /// the "switched directions" worked more accurately. If instead of only knowing that a line
+        /// switched directions, we could also find how far along the "expansion" that occured, we
+        /// could then merge the points there, then continue the rest of the way with the new point.
+        /// This would solve issue #1 too. After the merging, it would also need to do a check if 
+        /// the outline had split and reacted accordingly.
         /// </remarks>
 
         // Calcualate how far out the edges will need to be to be at the angle given.

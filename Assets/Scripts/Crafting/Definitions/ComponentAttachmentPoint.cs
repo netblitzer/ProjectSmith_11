@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class ComponentAttachmentPoint : MonoBehaviour {
 
+    public Component rootComponent;
+
     public ComponentObject rootObject;
 
     public Vector3 location { get; private set; }
@@ -14,13 +16,21 @@ public class ComponentAttachmentPoint : MonoBehaviour {
 
     public ComponentAttachmentPoint attachedTo;
 
-	// Use this for initialization
-	void Start () {
-		
-	}
-	
-	// Update is called once per frame
-	void Update () {
-		
-	}
+
+    public void SetLocation (Vector3 _loc) {
+        this.location = _loc;
+    }
+
+    public void SetNormalDirection (Vector3 _dir) {
+        this.normalDirection = _dir;
+    }
+}
+
+[System.Serializable]
+public class ComponentAttachmentPointData {
+
+    public SerializableVector3 Location;
+    public SerializableVector3 Normal;
+    public float Size;
+
 }
