@@ -5,24 +5,68 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
-public class Component {
+public class Component : MonoBehaviour {
+
+
+    public string componentName;
+
+    public Mesh componentMesh;
+
+
+    // -----/ Design Mode Parameters /-----
 
     public List<Vertex> vertices;
 
     public List<Connection> connections;
 
-    public List<ComponentAttachmentPoint> attachPoints;
 
-    public Mesh componentMesh;
+    // -----/ Forge Mode Parameters /-----
 
-    public string componentName;
+    // The list of all the attachment points that this component has.
+    public List<AttachmentPoint> attachPoints;
+
+    // The list of the physical representations of the attachment points this component has.
+    public List<GameObject> attachPointObjects;
+
+    // The original color that this object was when it was instantiated.
+    private Color originalColor;
+
+    // The ForgerUI in the scene to get the colors from.
+    private ForgerUI forgeUI;
+
+    // Whether this object is currently locked (can't be moved, manipulated, deleted).
+    public bool IsObjectLocked;
+
+    // Whether this object is being hovered over by the mouse.
+    public bool IsHovered;
+
+    // Whether this object is currently selected by the mouse.
+    public bool IsSelected;
+
+    // Function to initialize variables and lists.
+    private void Init () {
+        if (this.vertices == null) {
+            this.vertices = new List<Vertex>();
+            this.connections = new List<Connection>();
+            this.attachPoints = new List<AttachmentPoint>();
+            this.componentName = "New Component";
+        }
+    }
 
     public Component () {
-        this.vertices = new List<Vertex>();
-        this.connections = new List<Connection>();
-        this.componentMesh = new Mesh();
-        this.componentName = "Unavailable";
+        this.Init();
     }
+
+    void Awake () {
+        this.Init();
+
+        // To play safe with Unity's scripting API, these need to be called in Awake or Start, not in a constructor.
+        this.componentMesh = new Mesh();
+        this.FirstRender();
+    }
+
+
+    // -----/ Design Mode Functions /-----
 
     public void SetName (string _name) {
         this.componentName = _name;
@@ -40,6 +84,10 @@ public class Component {
         this.connections = _conns;
     }
 
+    public void SetAttachmentPoints (List<AttachmentPoint> _attach) {
+        this.attachPoints = _attach;
+    }
+
     public void SetComponent (List<Vertex> _verts, List<Connection> _conns, Mesh _m, string _name) {
         this.vertices = _verts;
         this.connections = _conns;
@@ -50,9 +98,93 @@ public class Component {
     public void ClearComponent () {
         this.vertices.Clear();
         this.connections.Clear();
-        this.componentMesh.Clear();
+        if (this.componentMesh != null)
+            this.componentMesh.Clear();
+        else
+            this.componentMesh = new Mesh();
+
         this.componentName = "Unavailable";
     }
+
+
+    // -----/ Forging Mode Functions /-----
+
+     /// <summary>
+     /// Sets up the component when it's first rendered into the forge.
+     /// </summary>
+    public void FirstRender () {
+        this.originalColor = this.gameObject.GetComponent<Renderer>().material.color;
+
+    }
+
+    /// <summary>
+    /// Sets the ForgerUI to be the current scene's (variable passed in).
+    /// </summary>
+    /// <param name="_ui">The ForgerUI in the Forge scene.</param>
+    public void SetUI (ForgerUI _ui) {
+        this.forgeUI = _ui;
+    }
+
+    /// <summary>
+    /// Creates objects at each attachment position and sets them to be children of the component's object.
+    /// </summary>
+    /// <param name="_attachPointPrefab">The prefab that the attachment points should follow.</param>
+    public void RenderAttachmentPoints (GameObject _attachPointPrefab) {
+        // Go through each attachment point and create a new object at that location.
+        foreach (AttachmentPoint ap in this.attachPoints) {
+            GameObject tempPoint = GameObject.Instantiate(_attachPointPrefab);
+
+            // Add the object to the list.
+            this.attachPointObjects.Add(tempPoint);
+
+            // Set the name.
+            tempPoint.name = this.componentName + ": Attachment Point #" + this.attachPointObjects.Count;
+
+            // Set the object as a child of the component.
+            tempPoint.transform.SetParent(this.gameObject.transform);
+
+            // Set the properties of the attachment point's object.
+            tempPoint.transform.position = ap.location + ap.normalDirection / 1.5f;
+            tempPoint.transform.rotation = Quaternion.LookRotation(new Vector3(ap.normalDirection.y, -ap.normalDirection.x), ap.normalDirection);
+        }
+    }
+
+    public void LockComponentRender (bool _locked) {
+        this.IsObjectLocked = _locked;
+    }
+
+    public void SetHovered (bool _hovered) {
+        this.IsHovered = _hovered;
+        // If we're hovered but not selected, change the color to the hover color.
+        if (this.IsHovered && !this.IsSelected)
+            this.gameObject.GetComponent<Renderer>().material.color = this.forgeUI.hoverColor;
+
+        // If we're not hovered or selected, reset the color.
+        if (!this.IsHovered && !this.IsSelected)
+            this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
+    }
+
+    public void SetSelected (bool _selected) {
+        this.IsSelected = _selected;
+
+        // If we're selected, change the color to the selected color.
+        if (this.IsSelected)
+            this.gameObject.GetComponent<Renderer>().material.color = this.forgeUI.selectedColor;
+
+        // If we're not hovered or selected, reset the color.
+        if (!this.IsHovered && !this.IsSelected)
+            this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
+    }
+
+    public void ResetComponentRender () {
+        this.IsSelected = false;
+        this.IsHovered = false;
+
+        this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
+    }
+
+
+    // -----/ Saving and Loading /-----
 
     public string SaveComponent (bool _overwrite, string _path) {
         string savePath = _path;
@@ -88,9 +220,8 @@ public class Component {
         List<VertexData> vData = new List<VertexData>();
         foreach (Vertex v in this.vertices) {
             VertexData tempData = new VertexData();
-            tempData.x = v.Location.x;
-            tempData.y = v.Location.y;
-            tempData.locked = v.IsVertexLocked;
+            tempData.Location = v.Location;
+            tempData.Locked = v.IsVertexLocked;
             vData.Add(tempData);
         }
 
@@ -98,18 +229,29 @@ public class Component {
         List<ConnectionData> connData = new List<ConnectionData>();
         foreach (Connection c in this.connections) {
             ConnectionData tempData = new ConnectionData();
-            tempData.first = this.vertices.IndexOf(c.First);
-            tempData.second = this.vertices.IndexOf(c.Second);
-            tempData.type = (int) c.Edge;
+            tempData.First = this.vertices.IndexOf(c.First);
+            tempData.Second = this.vertices.IndexOf(c.Second);
+            tempData.Type = (int) c.Edge;
             connData.Add(tempData);
+        }
+
+        // Save each attachment point to an ComponentAttachmentPointData object.
+        List<AttachmentPointData> attachData = new List<AttachmentPointData>();
+        foreach (AttachmentPoint ap in this.attachPoints) {
+            AttachmentPointData tempData = new AttachmentPointData();
+            tempData.Location = ap.location;
+            tempData.Normal = ap.normalDirection;
+            tempData.Size = ap.attachmentSize;
+            attachData.Add(tempData);
         }
 
         // Attach the vertexData and connectionData to the componentData object.
         cData.vertData = vData;
         cData.connData = connData;
+        cData.attachData = attachData;
 
         // If we have a mesh, we need to write where it will be located before we close this file stream.
-        if (this.componentMesh.vertices.Length != 0) {
+        if (this.componentMesh != null && this.componentMesh.vertices.Length != 0) {
             cData.meshPath = Application.persistentDataPath + savePath + "/Meshes/" + this.componentName + ".dat";
         }
         else
@@ -176,8 +318,8 @@ public class Component {
         for (int i = 0; i < cData.vertData.Count; i++) {
             Vertex temp = new Vertex();
             VertexData tempData = cData.vertData[i];
-            temp.Location = new Vector2(tempData.x, tempData.y);
-            temp.LockVertex(tempData.locked);
+            temp.Location = tempData.Location;
+            temp.LockVertex(tempData.Locked);
             this.vertices.Add(temp);
         }
 
@@ -185,8 +327,18 @@ public class Component {
         for (int i = 0; i < cData.connData.Count; i++) {
             Connection temp = new Connection();
             ConnectionData tempData = cData.connData[i];
-            temp.SetConnection(this.vertices[tempData.first], this.vertices[tempData.second], (EdgeType) tempData.type);
+            temp.SetConnection(this.vertices[tempData.First], this.vertices[tempData.Second], (EdgeType) tempData.Type);
             this.connections.Add(temp);
+        }
+
+        // Load in all the attachment points.
+        for (int i = 0; i < cData.attachData.Count; i++) {
+            AttachmentPoint temp = new AttachmentPoint();
+            AttachmentPointData tempData = cData.attachData[i];
+            temp.SetLocation(tempData.Location);
+            temp.SetNormalDirection(tempData.Normal);
+            temp.SetComponent(this);
+            this.attachPoints.Add(temp);
         }
 
         // See if the mesh data exists.
@@ -226,11 +378,14 @@ public class Component {
     }
 }
 
+
+// -----/ Serialization Data Objects /-----
 [Serializable]
 public class ComponentData {
     public ComponentData () {
         this.vertData = new List<VertexData>();
         this.connData = new List<ConnectionData>();
+        this.attachData = new List<AttachmentPointData>();
     }
 
     public string name;
@@ -238,6 +393,7 @@ public class ComponentData {
 
     public List<VertexData> vertData;
     public List<ConnectionData> connData;
+    public List<AttachmentPointData> attachData;
 }
 
 [Serializable]

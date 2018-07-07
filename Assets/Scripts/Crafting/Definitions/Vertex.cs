@@ -188,7 +188,6 @@ public class Vertex {
 
 [System.Serializable]
 public class VertexData {
-    public float x;
-    public float y;
-    public bool locked;
+    public SerializableVector2 Location;
+    public bool Locked;
 }

@@ -9,8 +9,6 @@ public class ForgerManager : MonoBehaviour {
 
     public GameObject currentSelectedComponent;
 
-    public GameObject baseRenderedComponentPrefab;
-
     private List<Component> activeComponents;
 
     private List<GameObject> activeRenderedComponentObjects;
@@ -73,9 +71,9 @@ public class ForgerManager : MonoBehaviour {
         return options;
     }
 
-    public string LoadSelectedComponent (string _path, out GameObject _component) {
+    public string LoadSelectedComponent (string _path, GameObject _component) {
         // If we're not saving or there aren't changes to save, just load up the component.
-        Component c = new Component();
+        Component c = _component.GetComponent<Component>();
         if (c.LoadComponent(_path)) {
             this.changesSinceLastSave = false;
 
@@ -83,7 +81,6 @@ public class ForgerManager : MonoBehaviour {
             this.activeComponents.Add(c);
 
             // Create the mesh representation of the component.
-            _component = GameObject.Instantiate(this.baseRenderedComponentPrefab);
             MeshFilter mFilter = _component.GetComponent<MeshFilter>();
             mFilter.mesh = c.componentMesh;
 

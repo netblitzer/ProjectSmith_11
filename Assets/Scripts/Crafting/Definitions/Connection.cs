@@ -103,7 +103,7 @@ public class Connection {
 
 [System.Serializable]
 public class ConnectionData {
-    public int first;
-    public int second;
-    public int type;
+    public int First;
+    public int Second;
+    public int Type;
 }

@@ -16,7 +16,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     // What mode the forging UI is currently in.
     public ForgerMode currentMode;
 
-    private List<ComponentObject> components;
+    private List<Component> components;
+
+    public GameObject baseRenderedComponentPrefab;
+
+    public GameObject baseAttachmentPointPrefab;
 
     // Whether the mouse is currently hovering over the design space.
     private bool isCurrentlyHovering;
@@ -84,7 +88,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     // Use this for initialization
     void Start () {
         // Instantiate lists.
-        this.components = new List<ComponentObject>();
+        this.components = new List<Component>();
 
         // Make sure all menus are closed.
         this.ToggleLoadMenu(false);
@@ -114,14 +118,81 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             // Check if we're deleting this object first.
             if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.Backspace)) {
                 // If the delete or backspace key is pressed, destroy the object and remove it from any instances.
-                ComponentObject comp = this.currentActiveObject.GetComponent<ComponentObject>();
+                Component comp = this.currentActiveObject.GetComponent<Component>();
                 this.components.Remove(comp);
                 Destroy(this.currentActiveObject);
                 this.currentActiveObject = null;
                 this.IsAnObjectSelected = false;
             }
             else {
-                this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+                // Otherwise, we'll manipulate the object according to its current position and status.
+
+                // We don't have to worry about snapping if there's not more than 1 component currently out.
+                if (this.components.Count > 1) {
+                    // First, check if the object has any attachment points close to any other component's attachment points.
+                    // If it does, that means they should snap if their angles are relatively colinear and the distance isn't that great.
+                    // WARNING: THIS IS VERY UNOPTIMIZED. FOR LARGE AMOUNTS OF ATTACHMENT POINTS, THIS WILL CAUSE SEVERE LAG.
+
+                    // Get the component attached to our current object.
+                    Component currentComp = this.currentActiveObject.GetComponent<Component>();
+
+                    // Make sure the currentComp exists and then go through each component in our list.
+                    if (currentComp != null) {
+                        // Placeholders for the closest point we can attach to.
+                        AttachmentPoint closestAPoint = null;
+                        AttachmentPoint ourClosestAPoint = null;
+                        float closestDist = float.MaxValue;
+
+                        for (int i = 0; i < this.components.Count; i++) {
+
+                            // Get each component.
+                            Component testComp = this.components[i];
+
+                            // Check to make sure we're not comparing to the current selected component. If we are, break out of the loop.
+                            if (currentComp == testComp)
+                                break;
+
+                            // At this point, we can start comparing attachment points.
+                            for (int j = 0; j < currentComp.attachPoints.Count; j++) {
+                                AttachmentPoint currAPoint = currentComp.attachPoints[j];
+
+                                for (int k = 0; k < testComp.attachPoints.Count; k++) {
+                                    AttachmentPoint testAPoint = testComp.attachPoints[k];
+
+                                    float ang = Vector3.Angle(currAPoint.GetWorldDirection(), testAPoint.GetWorldDirection());
+                                    // Compare the two objects angles to see if they're relatively aligned.
+                                    if (ang > 150f) {
+                                        float dist;
+                                        // Compare the distances to see if they're relatively close.
+                                        if ((dist = Vector3.Distance(currAPoint.GetWorldPosition(), testAPoint.GetWorldPosition())) < 1f) {
+                                            // If we've made it here, we have points that we can snap together potentially.
+                                            if (dist < closestDist) {
+                                                closestDist = dist;
+                                                closestAPoint = testAPoint;
+                                                ourClosestAPoint = currAPoint;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } // End check for points.
+
+                        // If we found a point, we should now snap the current selected object to that point.
+                        if (closestAPoint != null) {
+                            // Move the object by the current difference between where the attachment position SHOULD be.
+                            this.currentActiveObject.transform.position -= (ourClosestAPoint.GetWorldPosition() - closestAPoint.GetWorldPosition());
+                        }
+                        else {
+                            // Otherwise, just place the object where the mouse is.
+                            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position 
+                                + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+                        }
+                    }
+                }
+                // If we don't have more than 1 component, just move it to where the mouse is.
+                else { 
+                    this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+                }
             }
         }
 
@@ -202,15 +273,15 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             GameObject hit = mouseRayHit.collider.gameObject;
 
             // See if the object is either a component or the direction indicator.
-            if (hit.GetComponent<ComponentObject>() != null || hit == this.cameraDirectionIndicator) {
-                // Get the object ComponentObject (if any).
-                ComponentObject compObj = hit.GetComponent<ComponentObject>();
+            if (hit.GetComponent<Component>() != null || hit == this.cameraDirectionIndicator) {
+                // Get the object component (if any).
+                Component compObj = hit.GetComponent<Component>();
                 // Make sure we're not hovering something that is already active.
                 if (hit != this.currentActiveObject) {
                     // Reset the last object if this is a different object.
                     if (this.currentActiveObject != null) {
-                        // Get the componentObject of the last object.
-                        ComponentObject lastCompObj = this.currentActiveObject.GetComponent<ComponentObject>();
+                        // Get the component of the last object.
+                        Component lastCompObj = this.currentActiveObject.GetComponent<Component>();
                         // The only option without the component object is the direction indicator.
                         if (lastCompObj == null)
                             this.cameraDirectionIndicator.GetComponent<Renderer>().material.color = Color.white;
@@ -241,7 +312,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                     this.currentActiveObject.GetComponent<Renderer>().material.color = Color.white;
                 else {
                     // If it's a component, set it to not hovered and reset the color.
-                    ComponentObject compObj = this.currentActiveObject.GetComponent<ComponentObject>();
+                    Component compObj = this.currentActiveObject.GetComponent<Component>();
                     compObj.SetHovered(false);
                 }
 
@@ -305,14 +376,14 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             // Get the object hit.
             GameObject hit = mouseRayHit.collider.gameObject;
 
-            // Get the object's ComponentObject.
-            ComponentObject compObj = hit.GetComponent<ComponentObject>();
+            // Get the object's component.
+            Component compObj = hit.GetComponent<Component>();
 
             // See if the object is a component.
-            if (hit.GetComponent<ComponentObject>() != null) {
+            if (hit.GetComponent<Component>() != null) {
                 // Reset the last object if there is one that was being hovered.
                 if (this.currentActiveObject != null)
-                    compObj.ResetComponent();
+                    compObj.ResetComponentRender();
 
                 // Change the active object.
                 this.currentActiveObject = hit;
@@ -336,8 +407,8 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     private void UnselectObject () {
         if (this.IsAnObjectSelected && this.currentActiveObject != null) {
 
-            // Get the object's ComponentObject.
-            ComponentObject compObj = this.currentActiveObject.GetComponent<ComponentObject>();
+            // Get the object's component.
+            Component compObj = this.currentActiveObject.GetComponent<Component>();
 
             // Unselect it.
             compObj.SetSelected(false);
@@ -384,10 +455,19 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     public void LoadOptionClicked (LoadOption _optionClicked) {
         this.lastLoadOptionClicked = _optionClicked;
 
-        // Load in the new component.
-        GameObject newComp;
-        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath(), out newComp);
+        // Create the new component object.
+        GameObject newComp = GameObject.Instantiate(this.baseRenderedComponentPrefab, Vector3.zero, Quaternion.identity);
 
+        // Load in the new component.
+        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath(), newComp);
+
+        // If we failed during loading, delete the object.
+        if (status == "FAILED") {
+            GameObject.Destroy(newComp);
+            return;
+        }
+        // Otherwise, spawn it into the world.
+        
         // Clear the last clicked option.
         this.lastLoadOptionClicked = null;
 
@@ -395,8 +475,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
         this.ToggleLoadMenu(false);
         
         // Set the componentObject's ui to this.
-        ComponentObject comp = newComp.GetComponent<ComponentObject>();
+        Component comp = newComp.GetComponent<Component>();
         comp.SetUI(this);
+
+        // Render the attachment points on the component.
+        comp.RenderAttachmentPoints(this.baseAttachmentPointPrefab);
 
         // Add the component to the list.
         this.components.Add(comp);

@@ -1132,8 +1132,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   manager: {fileID: 663125127}
   currentMode: 0
+  baseRenderedComponentPrefab: {fileID: 1537203456002822, guid: d438ae544cbae0a49a6fa371003d8cf6,
+    type: 2}
+  baseAttachmentPointPrefab: {fileID: 1108276907000356, guid: d579abd488b0a994aa0002ca2ff7d628,
+    type: 2}
   currentActiveObject: {fileID: 0}
   IsAnObjectSelected: 0
+  selectedDistFromCamera: 0
   hoverColor: {r: 1, g: 0.9982565, b: 0.7764706, a: 1}
   indicatorHoverColor: {r: 0.735849, g: 0.735849, b: 0.735849, a: 0}
   selectedColor: {r: 1, g: 1, b: 1, a: 0.7058824}
@@ -1695,8 +1700,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   weaponRoot: {fileID: 1708979100}
   currentSelectedComponent: {fileID: 0}
-  baseRenderedComponentPrefab: {fileID: 1537203456002822, guid: d438ae544cbae0a49a6fa371003d8cf6,
-    type: 2}
 --- !u!4 &663125128
 Transform:
   m_ObjectHideFlags: 0

@@ -31,6 +31,8 @@ public class ComponentObject : MonoBehaviour {
 
     public void SetComponent (Component _comp) {
         this.mainComponent = _comp;
+
+        // Create a new indicator for each attachment point.
     }
 
     public void LockComponentObject (bool _locked) {

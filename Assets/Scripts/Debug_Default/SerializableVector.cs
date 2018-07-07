@@ -16,6 +16,10 @@ public class SerializableVector3 {
         this.z = _z;
     }
 
+    public override string ToString () {
+        return "{ " + this.x + ", " + this.y + ", " + this.z + " }";
+    }
+
     public static implicit operator Vector3 (SerializableVector3 _vec3) {
         return new Vector3(_vec3.x, _vec3.y, _vec3.z);
     }
@@ -33,6 +37,10 @@ public class SerializableVector2 {
     public SerializableVector2 (float _x, float _y) {
         this.x = _x;
         this.y = _y;
+    }
+
+    public override string ToString () {
+        return "{ " + this.x + ", " + this.y + " }";
     }
 
     public static implicit operator Vector2 (SerializableVector2 _vec2) {

@@ -11,26 +11,25 @@ using UnityEngine.SceneManagement;
 
 public class MeshExpansion {
     // List of vertices / indices
-    List<Vertex> savedPoints;
     List<Vector3> vertexList;
     List<int> indexList;
+    List<AttachmentPoint> attachmentList;
 
+    // The base prefab of a component that will be modified when expansion is completed.
     public GameObject basePrefab;
+
+    // The location that the rendered object should be placed at.
     public Transform renderPosition;
+
+    // The triangulator script.
     Triangulator tri;
 
-    int activeButton = 0;
-
-    bool moveScene;                                     // Bool that is used in various scripts to determine whether to call the movescene method
-
-    // For checking save states
-    string tempObjName;                                 // Temporarily holds object name if this object already exists and somebody is trying to craft over it
-
     public MeshExpansion () { 
-        vertexList = new List<Vector3>();
-        indexList = new List<int>();
+        this.vertexList = new List<Vector3>();
+        this.indexList = new List<int>();
+        this.attachmentList = new List<AttachmentPoint>();
 
-        tri = new Triangulator();
+        this.tri = new Triangulator();
     }
 
     /// <summary>
@@ -72,10 +71,13 @@ public class MeshExpansion {
     /// <param name="_edgeAngle">How sharp the edge will be. This is the angle of the edge from
     /// the middle (XY plane) and the front/back plane. 0 degrees would be infinitely sharp, 90
     /// degrees would be completely blunt (basically a flat edge).</param>
-    public bool CreateMesh (List<Vertex> _vertices, List<Connection> _connections, float _thickness, float _edgeAngle, out List<int> _indices, out List<Vector3> _verts) {
+    public bool CreateMesh (List<Vertex> _vertices, List<Connection> _connections, float _thickness, float _edgeAngle, 
+        out List<int> _indices, out List<Vector3> _verts, out List<AttachmentPoint> _attachments) {
+
         // Make sure to clear the lists before we start.
-        vertexList.Clear();
-        indexList.Clear();
+        this.vertexList.Clear();
+        this.indexList.Clear();
+        this.attachmentList.Clear();
 
         // Pull out data into two lists for easy math
         List<Vector2> points = _vertices.Select(v => v.Location).ToList();
@@ -85,6 +87,20 @@ public class MeshExpansion {
         EdgeType _e = edges[edges.Count - 1];
         edges.RemoveAt(edges.Count - 1);
         edges.Insert(0, _e);
+
+        // TEMPORARY:
+        // Determine where the attachment points are based on which edges have been marked as possible to attach to.
+        for (int i = 0; i < _connections.Count; i++) {
+            if (_connections[i].ConnectionCanBeAttachedTo) {
+                // If a connection is set as able to be attached to, create a new attachment point there.
+                AttachmentPoint newAttachPoint = new AttachmentPoint();
+                newAttachPoint.SetLocation(_connections[i].MidPoint);
+                newAttachPoint.SetNormalDirection(_connections[i].Normal);
+
+                // Add it to the list.
+                this.attachmentList.Add(newAttachPoint);
+            }
+        }
 
         // How many edge loops the mesh should have. This is calculated based on the thickness of
         // the mesh.
@@ -1619,6 +1635,7 @@ public class MeshExpansion {
         // Output the final list of indices and vertices.
         _indices = this.indexList;
         _verts = this.vertexList;
+        _attachments = this.attachmentList;
 
         // If we've made it this far, the expansion worked.
         return true;

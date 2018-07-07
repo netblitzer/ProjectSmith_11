@@ -189,11 +189,11 @@ public class DesignerUI : MonoBehaviour, IUIManager {
     }
 
     public void OnPointerDown (PointerEventData _eventData) {
-        throw new NotImplementedException();
+        //throw new NotImplementedException();
     }
 
     public void OnPointerUp (PointerEventData _eventData) {
-        throw new NotImplementedException();
+        //throw new NotImplementedException();
     }
 
     public void EnableHovering (bool _enabled) {

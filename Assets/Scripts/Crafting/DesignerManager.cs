@@ -35,7 +35,7 @@ public class DesignerManager : MonoBehaviour {
 
     private string componentBasePath = "/SaveData/Components/";
 
-    private Component currentComponent;
+    public Component currentComponent;
 
     private bool changesSinceLastSave;
 
@@ -696,9 +696,13 @@ public class DesignerManager : MonoBehaviour {
             // First, sort all the vertices and get a final list for the polygon shape.
             if (this.SortVertices()) {
                 // If sorting succeeded, then try to expand the shape.
-                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices)) {
+                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices, out this.currentComponent.attachPoints)) {
                     // If the expansion succeeded, we can toggle the mode and switch to displaying the component.
                     this.isCurrentlyExpanded = true;
+
+                    // Make sure each attachment point is correctly set.
+                    foreach (AttachmentPoint ap in this.currentComponent.attachPoints)
+                        ap.SetComponent(this.currentComponent);
 
                     // Create a new mesh for the object.
                     Mesh m = new Mesh();
