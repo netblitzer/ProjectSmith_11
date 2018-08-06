@@ -35,6 +35,8 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     // The object that is currently being hovered over by the mouse (if any) or selected/dragged.
     public GameObject currentActiveObject;
 
+    public Component currentActiveComponent;
+
     // Whether there is currently an object selected and being manipulated.
     public bool IsAnObjectSelected;
 
@@ -48,6 +50,15 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     public Color selectedColor;
 
     public Color invalidColor;
+
+
+    // -----/ Snapping information /-----
+
+    // The point on the selected object that is being attached currently.
+    private AttachmentPoint currentSelectedAttachedPoint;
+
+    // The point on the other object that is currently attached.
+    private AttachmentPoint currentOtherAttachedPoint;
 
 
     // -----/ Camera Control Information /-----
@@ -127,21 +138,22 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             else {
                 // Otherwise, we'll manipulate the object according to its current position and status.
 
+                // First, check for rotations. If there are any, apply them to the current component.
+                this.CheckAndApplyRotations();
+
                 // We don't have to worry about snapping if there's not more than 1 component currently out.
                 if (this.components.Count > 1) {
                     // First, check if the object has any attachment points close to any other component's attachment points.
                     // If it does, that means they should snap if their angles are relatively colinear and the distance isn't that great.
                     // WARNING: THIS IS VERY UNOPTIMIZED. FOR LARGE AMOUNTS OF ATTACHMENT POINTS, THIS WILL CAUSE SEVERE LAG.
-
-                    // Get the component attached to our current object.
-                    Component currentComp = this.currentActiveObject.GetComponent<Component>();
-
-                    // Make sure the currentComp exists and then go through each component in our list.
-                    if (currentComp != null) {
+                    
+                    // Make sure we have a component selected and then go through each component in our list.
+                    if (this.currentActiveComponent != null) {
                         // Placeholders for the closest point we can attach to.
                         AttachmentPoint closestAPoint = null;
                         AttachmentPoint ourClosestAPoint = null;
                         float closestDist = float.MaxValue;
+                        float dist;
 
                         for (int i = 0; i < this.components.Count; i++) {
 
@@ -149,20 +161,24 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                             Component testComp = this.components[i];
 
                             // Check to make sure we're not comparing to the current selected component. If we are, break out of the loop.
-                            if (currentComp == testComp)
+                            if (this.currentActiveComponent == testComp)
                                 break;
 
                             // At this point, we can start comparing attachment points.
-                            for (int j = 0; j < currentComp.attachPoints.Count; j++) {
-                                AttachmentPoint currAPoint = currentComp.attachPoints[j];
+                            for (int j = 0; j < this.currentActiveComponent.attachPoints.Count; j++) {
+                                AttachmentPoint currAPoint = this.currentActiveComponent.attachPoints[j];
 
                                 for (int k = 0; k < testComp.attachPoints.Count; k++) {
                                     AttachmentPoint testAPoint = testComp.attachPoints[k];
 
+                                    // Check to see if the test point is already filled.
+                                    if (testAPoint.IsAttached)
+                                        // Skip this point if it is.
+                                        continue;
+
                                     float ang = Vector3.Angle(currAPoint.GetWorldDirection(), testAPoint.GetWorldDirection());
                                     // Compare the two objects angles to see if they're relatively aligned.
                                     if (ang > 150f) {
-                                        float dist;
                                         // Compare the distances to see if they're relatively close.
                                         if ((dist = Vector3.Distance(currAPoint.GetWorldPosition(), testAPoint.GetWorldPosition())) < 1f) {
                                             // If we've made it here, we have points that we can snap together potentially.
@@ -177,15 +193,24 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                             }
                         } // End check for points.
 
-                        // If we found a point, we should now snap the current selected object to that point.
-                        if (closestAPoint != null) {
-                            // Move the object by the current difference between where the attachment position SHOULD be.
-                            this.currentActiveObject.transform.position -= (ourClosestAPoint.GetWorldPosition() - closestAPoint.GetWorldPosition());
+                        Vector2 mousePos = this.mainSceneCamera.ScreenToWorldPoint(Input.mousePosition) + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+                        dist = Vector3.Distance(mousePos, this.currentActiveObject.transform.position);
+
+                        // If the current selected object is far away from the mouse, we should move it to the mouse position.
+                        if ((dist > 3f && this.currentActiveComponent.IsComponentSnapped) || (closestAPoint == null && !this.currentActiveComponent.IsComponentSnapped)) {
+                            // See if the component is currently snapped, and if it is unsnap it.
+                            if (this.currentActiveComponent.IsComponentSnapped)
+                                this.currentActiveComponent.UnSnapComponent();
+
+                            // Move the component to where the mouse is.
+                            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position
+                                + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
                         }
                         else {
-                            // Otherwise, just place the object where the mouse is.
-                            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position 
-                                + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
+                            // If we found a point, we should now snap the current selected object to that point.
+                            if (closestAPoint != null) {
+                                this.currentActiveComponent.SnapComponent(ourClosestAPoint, closestAPoint);
+                            }
                         }
                     }
                 }
@@ -220,6 +245,40 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             this.mouseMoveAmount = Vector3.zero;
         }
     }
+
+    private void CheckAndApplyRotations () {
+        if (this.currentActiveComponent == null)
+            return;
+
+        bool shiftApplied = Input.GetKey(KeyCode.LeftShift);
+        bool altApplied = Input.GetKey(KeyCode.LeftAlt);
+
+        float rotationAmt = 90f;
+        if (shiftApplied)
+            rotationAmt = 15f;
+        if (altApplied)
+            rotationAmt = 5f;
+
+        Vector3 rotation = Vector3.zero;
+
+        if (Input.GetKeyDown(KeyCode.A))
+            rotation.z += rotationAmt;
+        if (Input.GetKeyDown(KeyCode.D))
+            rotation.z -= rotationAmt;
+        if (Input.GetKeyDown(KeyCode.W))
+            rotation.x += rotationAmt;
+        if (Input.GetKeyDown(KeyCode.S))
+            rotation.x -= rotationAmt;
+        if (Input.GetKeyDown(KeyCode.Q))
+            rotation.y += rotationAmt;
+        if (Input.GetKeyDown(KeyCode.E))
+            rotation.y -= rotationAmt;
+
+        if (rotation != Vector3.zero)
+            this.currentActiveComponent.RotateComponentRender(rotation);
+    }
+
+
 
     // -----/ Mouse Events /-----
     #region MouseEvents
@@ -380,13 +439,14 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             Component compObj = hit.GetComponent<Component>();
 
             // See if the object is a component.
-            if (hit.GetComponent<Component>() != null) {
+            if (compObj != null) {
                 // Reset the last object if there is one that was being hovered.
-                if (this.currentActiveObject != null)
-                    compObj.ResetComponentRender();
+                if (this.currentActiveComponent != null)
+                    this.currentActiveComponent.ResetComponentRender();
 
                 // Change the active object.
                 this.currentActiveObject = hit;
+                this.currentActiveComponent = compObj;
 
                 // Set that we have something selected.
                 this.IsAnObjectSelected = true;
@@ -395,7 +455,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                 this.selectedDistFromCamera = Vector3.Distance(this.mainSceneCamera.transform.position, hit.transform.position);
                 
                 // If we hit a component, set its color and that it's being selected.
-                compObj.SetSelected(true);
+                this.currentActiveComponent.SetSelected(true);
 
                 return true;
             }
@@ -405,13 +465,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     }
 
     private void UnselectObject () {
-        if (this.IsAnObjectSelected && this.currentActiveObject != null) {
-
-            // Get the object's component.
-            Component compObj = this.currentActiveObject.GetComponent<Component>();
-
+        // Check to see if we currently have a component selected.
+        if (this.IsAnObjectSelected && this.currentActiveComponent != null) {
             // Unselect it.
-            compObj.SetSelected(false);
+            this.currentActiveComponent.SetSelected(false);
+            this.currentActiveComponent = null;
             this.currentActiveObject = null;
             this.IsAnObjectSelected = false;
         }

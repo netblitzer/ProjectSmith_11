@@ -111,19 +111,6 @@ public class Vertex {
         this.Connections[1] = temp;
     }
 
-    public void Save (StreamWriter writer) {
-        writer.WriteLine(this.Location.x);
-        writer.WriteLine(this.Location.y);
-        writer.WriteLine(this.IsVertexLocked);
-        writer.WriteLine();
-    }
-
-    public void Load (StreamReader reader) {
-        this.Location = new Vector2(reader.Read(), reader.Read());
-        string locked = reader.ReadLine();
-        this.IsVertexLocked = (locked == "True") ? true : false;
-    }
-
     /// <summary>
     /// A function to get the cross product of two Vector2s.
     /// </summary>

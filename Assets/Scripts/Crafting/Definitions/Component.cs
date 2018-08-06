@@ -43,6 +43,11 @@ public class Component : MonoBehaviour {
     // Whether this object is currently selected by the mouse.
     public bool IsSelected;
 
+    public bool IsComponentSnapped;
+
+    public Vector3 currentRotation;
+
+
     // Function to initialize variables and lists.
     private void Init () {
         if (this.vertices == null) {
@@ -115,6 +120,7 @@ public class Component : MonoBehaviour {
     public void FirstRender () {
         this.originalColor = this.gameObject.GetComponent<Renderer>().material.color;
 
+        this.currentRotation = Vector3.zero;
     }
 
     /// <summary>
@@ -181,6 +187,56 @@ public class Component : MonoBehaviour {
         this.IsHovered = false;
 
         this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
+    }
+
+    public void RotateComponentRender (Vector3 _rot) {
+        // Add to the rotation.
+        this.currentRotation += _rot;
+
+        // Corrent the rotation to be within -180 to 180.
+        this.currentRotation = this.CorrectEulerAngle(this.currentRotation);
+
+        // Rotate the component object if it's not snapped.
+        if (!this.IsComponentSnapped)
+            this.gameObject.transform.rotation = Quaternion.Euler(this.currentRotation);
+    }
+
+    public void SnapComponent (AttachmentPoint _ourAttach, AttachmentPoint _otherAttach) {
+
+        // Find the normal vector to the plane that's created by the directions of the two attachment points.
+        Vector3 planeNormal = Vector3.Cross(_otherAttach.GetWorldDirection(), _ourAttach.GetWorldDirection());
+
+        // Find the angle the component needs to rotate.
+        float ang = Vector3.Angle(_ourAttach.GetWorldDirection(), _otherAttach.GetWorldDirection());
+
+        // Rotate the component to align with the attachment point.
+        this.gameObject.transform.Rotate(planeNormal, (180f - ang));
+
+        // Move the component by the current difference between where the attachment position SHOULD be.
+        this.gameObject.transform.position -= (_ourAttach.GetWorldPosition() - _otherAttach.GetWorldPosition());
+
+        // Set this component to be attached.
+        this.IsComponentSnapped = true;
+
+        // Fill the attachment points.
+        _ourAttach.AttachTo(_otherAttach);
+        _otherAttach.AttachTo(_ourAttach);
+    }
+
+    public void UnSnapComponent () {
+        // Reset the rotation to before it was snapped.
+        this.gameObject.transform.rotation = Quaternion.Euler(this.currentRotation);
+
+        // Unsnap every attachment point this component has.
+        foreach (AttachmentPoint ap in this.attachPoints) {
+            // If the point is attached, unsnap the point it's attached to.
+            if (ap.IsAttached) {
+                ap.attachedTo.UnAttach();
+                ap.UnAttach();
+            }
+        }
+
+        this.IsComponentSnapped = false;
     }
 
 
@@ -375,6 +431,20 @@ public class Component : MonoBehaviour {
         }
 
         return true;
+    }
+
+
+    // -----/ Assistance Functions /-----
+
+    private Vector3 CorrectEulerAngle (Vector3 _euler) {
+        for (int i = 0; i < 3; i++) {
+            if (_euler[i] > 180f)
+                _euler[i] -= 360f;
+            if (_euler[i] < -180f)
+                _euler[i] += 360f;
+        }
+
+        return _euler;
     }
 }
 

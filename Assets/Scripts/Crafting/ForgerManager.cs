@@ -97,12 +97,6 @@ public class ForgerManager : MonoBehaviour {
             // Add the mesh to the list.
             this.activeRenderedComponentObjects.Add(_component);
 
-            // Create and add the new component to the list of component objects that we have available.
-            ComponentObject comp = _component.AddComponent<ComponentObject>();
-
-            // Add the component to the object.
-            comp.SetComponent(c);
-
             return "LOADED";
         }
 
