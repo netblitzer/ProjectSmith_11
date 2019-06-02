@@ -76,7 +76,9 @@ public class DesignerUI : MonoBehaviour, IUIManager {
 
     public GameObject loadFileUnsavedChangesParent;
 
-    private LoadOption lastLoadOptionClicked;
+    private LoadComponentOption lastLoadOptionClicked;
+
+
 
 	// Use this for initialization
 	void Start () {
@@ -391,7 +393,7 @@ public class DesignerUI : MonoBehaviour, IUIManager {
         this.loadFileMenuParent.SetActive(_toggle);
     }
 
-    public void LoadOptionClicked (LoadOption _optionClicked) {
+    public void LoadComponentOptionClicked (LoadComponentOption _optionClicked) {
         this.lastLoadOptionClicked = _optionClicked;
 
         string status = this.manager.LoadSelectedOption(_optionClicked.GetLoadFilePath(), false);

@@ -20,13 +20,13 @@ public class DesignerManager : MonoBehaviour {
 
     /// <summary>
     /// The connections that make up the completed shape starting with the starting point.
-    /// This list is a list of all RIGHT connections (meaning the current point to the next).
-    /// If this list is 4 long, that means the first connection is from 0 to 1.
+    ///  This list is a list of all RIGHT connections (meaning the current point to the next).
+    ///  If this list is 4 long, that means the first connection is from 0 to 1.
     /// </summary>
     private List<Connection> polygonConnections;
 
     // The script that will expand the polygon shape into a mesh. This will just feed back a list
-    // of final points and indices for us to work with.
+    //  of final points and indices for us to work with.
     private MeshExpansion expander;
 
     private List<int> meshIndices;
@@ -696,12 +696,12 @@ public class DesignerManager : MonoBehaviour {
             // First, sort all the vertices and get a final list for the polygon shape.
             if (this.SortVertices()) {
                 // If sorting succeeded, then try to expand the shape.
-                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices, out this.currentComponent.attachPoints)) {
+                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices, out this.currentComponent.attacmenthPoints)) {
                     // If the expansion succeeded, we can toggle the mode and switch to displaying the component.
                     this.isCurrentlyExpanded = true;
 
                     // Make sure each attachment point is correctly set.
-                    foreach (AttachmentPoint ap in this.currentComponent.attachPoints)
+                    foreach (AttachmentPoint ap in this.currentComponent.attacmenthPoints)
                         ap.SetComponent(this.currentComponent);
 
                     // Create a new mesh for the object.
@@ -875,7 +875,7 @@ public class DesignerManager : MonoBehaviour {
 
             // Create the new object and get its script.
             GameObject temp = GameObject.Instantiate(_prefab);
-            LoadOption tempLoadOption = temp.GetComponent<LoadOption>();
+            LoadComponentOption tempLoadOption = temp.GetComponent<LoadComponentOption>();
 
             // Set up the script.
             if (tempLoadOption.SetFilePath(path))

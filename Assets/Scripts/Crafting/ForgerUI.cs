@@ -8,13 +8,16 @@ using System;
 
 public class ForgerUI : MonoBehaviour, IUIManager {
 
+    // Every UI script requires a backend manager.
     public ForgerManager manager;
 
 
-    // -----/ Internal Mode Information /-----
+    // -----/ Internal Mode Information /----- //
 
     // What mode the forging UI is currently in.
     public ForgerMode currentMode;
+
+    private bool isLoadComponentMenuOpen = false;
 
     private List<Component> components;
 
@@ -30,12 +33,10 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     private bool isRightMouseDown;
 
 
-    // -----/ Hovering and Selection Information /-----
+    // -----/ Hovering and Selection Information /----- //
 
-    // The object that is currently being hovered over by the mouse (if any) or selected/dragged.
-    public GameObject currentActiveObject;
-
-    public Component currentActiveComponent;
+    // The object that is currently being hovered over by the mouse (if any).
+    public GameObject currentHoveredObject;
 
     // Whether there is currently an object selected and being manipulated.
     public bool IsAnObjectSelected;
@@ -52,7 +53,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     public Color invalidColor;
 
 
-    // -----/ Snapping information /-----
+    // -----/ Snapping information /----- //
 
     // The point on the selected object that is being attached currently.
     private AttachmentPoint currentSelectedAttachedPoint;
@@ -61,9 +62,13 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     private AttachmentPoint currentOtherAttachedPoint;
 
 
-    // -----/ Camera Control Information /-----
+    // -----/ Camera Control Information /----- //
 
     public Camera mainSceneCamera;
+
+    public Camera orthoSceneCamera;
+
+    public GameObject cameraRootObject;
 
     private Vector3 cameraRotation;
 
@@ -79,21 +84,24 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     public GameObject cameraDirectionIndicator;
 
 
-    // -----/ UI Saving Elements /-----
+    // -----/ Load Component UI /----- //
 
-    public GameObject fileAlreadyExistsParent;
+    public GameObject loadComponentFileMenuParent;
 
-    public Text fileAlreadyExistsText;
+    public ScrollRect loadComponentFileScrollObject;
 
-    public GameObject loadFileMenuParent;
+    public GameObject loadComponentFileOptionPrefab;
 
-    public ScrollRect loadFileScrollObject;
+    private LoadComponentOption lastLoadComponentOptionClicked;
 
-    public GameObject loadFileOptionPrefab;
 
-    public GameObject loadFileUnsavedChangesParent;
+    // -----/ Weapon Loading/Saving Elements /----- //
 
-    private LoadOption lastLoadOptionClicked;
+    public GameObject weaponFileAlreadyExistsParent;
+
+    public Text weaponFileAlreadyExistsText;
+
+    public GameObject loadWeaponFileUnsavedChangesParent;
 
 
     // Use this for initialization
@@ -102,12 +110,13 @@ public class ForgerUI : MonoBehaviour, IUIManager {
         this.components = new List<Component>();
 
         // Make sure all menus are closed.
-        this.ToggleLoadMenu(false);
+        this.OpenCloseLoadComponentMenu(false);
 
         // Set up camera properties.
         this.cameraLookPosition = new Vector3(0, 0, 0);
         this.cameraRotation = mainSceneCamera.transform.rotation.eulerAngles;
         // Place the camera indicator in the correct location.
+        /*
         float frustumHeight = 1.0f * Mathf.Tan(this.mainSceneCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
         Vector3 indicatorPos = new Vector3(frustumHeight * this.mainSceneCamera.aspect, frustumHeight, 1f);
         float minScreenDimension = Mathf.Min(indicatorPos.x, indicatorPos.y);
@@ -115,139 +124,43 @@ public class ForgerUI : MonoBehaviour, IUIManager {
         indicatorPos.y -= minScreenDimension * 0.15f;
         this.cameraDirectionIndicator.transform.localPosition = indicatorPos;
         this.cameraDirectionIndicator.transform.localScale = new Vector3(minScreenDimension * 0.075f, minScreenDimension * 0.075f, minScreenDimension * 0.075f);
+        */
+        this.cameraDirectionIndicator.transform.localPosition = new Vector3(this.orthoSceneCamera.aspect - 0.1f, 0.9f, 3);
+
+        // Set up variables.
+        this.lastMousePosition = new Vector3(Mathf.NegativeInfinity, 0, 0);
     }
 	
 	// Update is called once per frame
 	void Update () {
-
-        if (this.isCurrentlyHovering && !this.IsAnObjectSelected) {
-            this.HandleMouseHovering(null);
-        }
+        
+        this.HandleMouseHovering(null);
 
         // If we currently have an object selected and we're manipulating it.
-        if (this.IsAnObjectSelected) {
+        if (this.manager.IsAComponentSelected) {
             // Check if we're deleting this object first.
             if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.Backspace)) {
-                // If the delete or backspace key is pressed, destroy the object and remove it from any instances.
-                Component comp = this.currentActiveObject.GetComponent<Component>();
-                this.components.Remove(comp);
-                Destroy(this.currentActiveObject);
-                this.currentActiveObject = null;
-                this.IsAnObjectSelected = false;
+                // If the delete or backspace key is pressed, delete the component.
+                this.manager.DeleteSelectedComponent();
             }
             else {
                 // Otherwise, we'll manipulate the object according to its current position and status.
 
                 // First, check for rotations. If there are any, apply them to the current component.
-                this.CheckAndApplyRotations();
+                this.CheckForRotations();
 
-                // We don't have to worry about snapping if there's not more than 1 component currently out.
-                if (this.components.Count > 1) {
-                    // First, check if the object has any attachment points close to any other component's attachment points.
-                    // If it does, that means they should snap if their angles are relatively colinear and the distance isn't that great.
-                    // WARNING: THIS IS VERY UNOPTIMIZED. FOR LARGE AMOUNTS OF ATTACHMENT POINTS, THIS WILL CAUSE SEVERE LAG.
-                    
-                    // Make sure we have a component selected and then go through each component in our list.
-                    if (this.currentActiveComponent != null) {
-                        // Placeholders for the closest point we can attach to.
-                        AttachmentPoint closestAPoint = null;
-                        AttachmentPoint ourClosestAPoint = null;
-                        float closestDist = float.MaxValue;
-                        float dist;
+                // Next move and check for snapping.
+                // Get the mouse position in game space.
+                Vector2 mousePos = this.mainSceneCamera.ScreenToWorldPoint(Input.mousePosition) + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.manager.distanceToSelectedComponent;
 
-                        for (int i = 0; i < this.components.Count; i++) {
-
-                            // Get each component.
-                            Component testComp = this.components[i];
-
-                            // Check to make sure we're not comparing to the current selected component. If we are, break out of the loop.
-                            if (this.currentActiveComponent == testComp)
-                                break;
-
-                            // At this point, we can start comparing attachment points.
-                            for (int j = 0; j < this.currentActiveComponent.attachPoints.Count; j++) {
-                                AttachmentPoint currAPoint = this.currentActiveComponent.attachPoints[j];
-
-                                for (int k = 0; k < testComp.attachPoints.Count; k++) {
-                                    AttachmentPoint testAPoint = testComp.attachPoints[k];
-
-                                    // Check to see if the test point is already filled.
-                                    if (testAPoint.IsAttached)
-                                        // Skip this point if it is.
-                                        continue;
-
-                                    float ang = Vector3.Angle(currAPoint.GetWorldDirection(), testAPoint.GetWorldDirection());
-                                    // Compare the two objects angles to see if they're relatively aligned.
-                                    if (ang > 150f) {
-                                        // Compare the distances to see if they're relatively close.
-                                        if ((dist = Vector3.Distance(currAPoint.GetWorldPosition(), testAPoint.GetWorldPosition())) < 1f) {
-                                            // If we've made it here, we have points that we can snap together potentially.
-                                            if (dist < closestDist) {
-                                                closestDist = dist;
-                                                closestAPoint = testAPoint;
-                                                ourClosestAPoint = currAPoint;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } // End check for points.
-
-                        Vector2 mousePos = this.mainSceneCamera.ScreenToWorldPoint(Input.mousePosition) + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
-                        dist = Vector3.Distance(mousePos, this.currentActiveObject.transform.position);
-
-                        // If the current selected object is far away from the mouse, we should move it to the mouse position.
-                        if ((dist > 3f && this.currentActiveComponent.IsComponentSnapped) || (closestAPoint == null && !this.currentActiveComponent.IsComponentSnapped)) {
-                            // See if the component is currently snapped, and if it is unsnap it.
-                            if (this.currentActiveComponent.IsComponentSnapped)
-                                this.currentActiveComponent.UnSnapComponent();
-
-                            // Move the component to where the mouse is.
-                            this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position
-                                + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
-                        }
-                        else {
-                            // If we found a point, we should now snap the current selected object to that point.
-                            if (closestAPoint != null) {
-                                this.currentActiveComponent.SnapComponent(ourClosestAPoint, closestAPoint);
-                            }
-                        }
-                    }
-                }
-                // If we don't have more than 1 component, just move it to where the mouse is.
-                else { 
-                    this.currentActiveObject.transform.position = this.mainSceneCamera.transform.position + this.mainSceneCamera.ScreenPointToRay(Input.mousePosition).direction * this.selectedDistFromCamera;
-                }
+                // Pass that to the manager.
+                this.manager.MoveAndSnapComponent(mousePos);
             }
-        }
-
-        // Handle camera movement.
-        if (this.isRightMouseDown) {
-            // Get the movement and rotation amounts.
-            Vector3 movePos = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-            Vector3 rot = new Vector3(this.mouseMoveAmount.x / 10f, -this.mouseMoveAmount.y / 10f, 0);
-
-            // Rotate the camera around its current look position.
-            this.mainSceneCamera.transform.RotateAround(this.cameraLookPosition, this.mainSceneCamera.transform.up, rot.x);
-            this.mainSceneCamera.transform.RotateAround(this.cameraLookPosition, this.mainSceneCamera.transform.right, rot.y);
-
-            // Translate the camera.
-            // NOTES: Currently disabled until there's more references for users to understand.
-            //this.mainSceneCamera.transform.Translate(movePos);
-
-            // Clamp the vertical camera rotation.
-            this.cameraRotation.x = Mathf.Clamp(this.cameraRotation.x, -85f, 85f);
-
-            // Rotate the indicator to continue to be "level".
-            this.cameraDirectionIndicator.transform.rotation = Quaternion.identity;
-
-            // Reset the mouse movement amount.
-            this.mouseMoveAmount = Vector3.zero;
         }
     }
 
-    private void CheckAndApplyRotations () {
-        if (this.currentActiveComponent == null)
+    private void CheckForRotations () {
+        if (this.manager.currentSelectedComponent == null)
             return;
 
         bool shiftApplied = Input.GetKey(KeyCode.LeftShift);
@@ -275,7 +188,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             rotation.y -= rotationAmt;
 
         if (rotation != Vector3.zero)
-            this.currentActiveComponent.RotateComponentRender(rotation);
+            this.manager.RotateSelectedComponent(rotation);
     }
 
 
@@ -300,13 +213,7 @@ public class ForgerUI : MonoBehaviour, IUIManager {
             case ForgerMode.IDLE:
             default:
                 // If we're in idle and click without anything selected, check if we're selecting a component.
-                if (!this.IsAnObjectSelected) {
-                    this.SelectObject(this.mainSceneCamera.ScreenPointToRay(_eventData.position));
-                }
-                else {
-                    // If we're clicking with something already selected, we should unselect it.
-                    this.UnselectObject();
-                }
+                this.manager.HandleIdleLeftClick(this.mainSceneCamera.ScreenPointToRay(_eventData.position));
 
                 break;
         }
@@ -336,11 +243,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                 // Get the object component (if any).
                 Component compObj = hit.GetComponent<Component>();
                 // Make sure we're not hovering something that is already active.
-                if (hit != this.currentActiveObject) {
+                if (hit != this.currentHoveredObject) {
                     // Reset the last object if this is a different object.
-                    if (this.currentActiveObject != null) {
+                    if (this.currentHoveredObject != null) {
                         // Get the component of the last object.
-                        Component lastCompObj = this.currentActiveObject.GetComponent<Component>();
+                        Component lastCompObj = this.currentHoveredObject.GetComponent<Component>();
                         // The only option without the component object is the direction indicator.
                         if (lastCompObj == null)
                             this.cameraDirectionIndicator.GetComponent<Renderer>().material.color = Color.white;
@@ -351,11 +258,11 @@ public class ForgerUI : MonoBehaviour, IUIManager {
                     }
 
                     // Change the new hovered.
-                    this.currentActiveObject = hit;
+                    this.currentHoveredObject = hit;
 
                     // If what we hit was the indicator, give it a different color.
-                    if (this.currentActiveObject == this.cameraDirectionIndicator)
-                        this.currentActiveObject.GetComponent<Renderer>().material.color = this.indicatorHoverColor;
+                    if (this.currentHoveredObject == this.cameraDirectionIndicator)
+                        this.currentHoveredObject.GetComponent<Renderer>().material.color = this.indicatorHoverColor;
                     else {
                         // If we hit a component, set its color and that it's being hovered.
                         compObj.SetHovered(true);
@@ -365,20 +272,64 @@ public class ForgerUI : MonoBehaviour, IUIManager {
         }
         else {
             // If we're no longer hovering over anything, reset the last hovered object if it exists and it's not selected.
-            if (this.currentActiveObject != null) {
-                if (this.currentActiveObject == this.cameraDirectionIndicator)
+            if (this.currentHoveredObject != null) {
+                if (this.currentHoveredObject == this.cameraDirectionIndicator)
                     // If it's the camera indicator, just change the color back.
-                    this.currentActiveObject.GetComponent<Renderer>().material.color = Color.white;
+                    this.currentHoveredObject.GetComponent<Renderer>().material.color = Color.white;
                 else {
                     // If it's a component, set it to not hovered and reset the color.
-                    Component compObj = this.currentActiveObject.GetComponent<Component>();
-                    compObj.SetHovered(false);
-                }
+                    Component compObj = this.currentHoveredObject.GetComponent<Component>();
 
-                if (!IsAnObjectSelected)
-                    this.currentActiveObject = null;
+                    // The only case this would be null is if the object is currently being deleted.
+                    if (compObj != null) {
+                        compObj.SetHovered(false);
+                    }
+
+                    // Reset the hovered object field.
+                    this.currentHoveredObject = null;
+                }
             }
         }
+    }
+
+    private void HandleMouseDragging (PointerEventData _eventData) {
+        if (this.lastMousePosition.x != Mathf.NegativeInfinity) {
+            this.mouseMoveAmount = Input.mousePosition - this.lastMousePosition;
+        }
+        else {
+            this.mouseMoveAmount = Vector3.zero;
+        }
+
+        this.lastMousePosition = Input.mousePosition;
+
+        if (this.isRightMouseDown) {
+            // Get the movement and rotation amounts.
+            Vector3 movePos = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
+            Vector3 rot = new Vector3(this.mouseMoveAmount.y / 20f, this.mouseMoveAmount.x / 10f, 0);
+
+            // Add the rotation to the current camera rotation.
+            this.cameraRotation += rot;
+
+            // Clamp the vertical rotation.
+            this.cameraRotation.x = Mathf.Clamp(this.cameraRotation.x, -60, 60);
+
+            // Fix the angle.
+            this.cameraRotation = this.CorrectEulerAngle(this.cameraRotation);
+
+            // Apply the rotation to the camera's root object.
+            this.cameraRootObject.transform.rotation = Quaternion.Euler(this.cameraRotation);
+
+            // Translate the camera.
+            // NOTES: Currently disabled until there's more references for users to understand.
+            //this.mainSceneCamera.transform.Translate(movePos);
+
+            // Rotate the indicator to continue to be "level".
+            this.cameraDirectionIndicator.transform.rotation = Quaternion.identity;
+        }
+        
+
+        // Reset the mouse movement amount.
+        this.mouseMoveAmount = Vector3.zero;
     }
 
     public void OnPointerDown (PointerEventData _eventData) {
@@ -402,145 +353,119 @@ public class ForgerUI : MonoBehaviour, IUIManager {
     }
 
     public void OnBeginDrag (PointerEventData _eventData) {
-        if (this.isRightMouseDown) {
-            this.mouseMoveAmount = Input.mousePosition - this.lastMousePosition;
-
-            this.lastMousePosition = Input.mousePosition;
-        }
+        this.HandleMouseDragging(_eventData);
     }
 
     public void OnMouseDrag (PointerEventData _eventData) {
-        if (this.isRightMouseDown) {
-            this.mouseMoveAmount = Input.mousePosition - this.lastMousePosition;
-
-            this.lastMousePosition = Input.mousePosition;
-        }
+        this.HandleMouseDragging(_eventData);
     }
 
     public void OnEndDrag (PointerEventData _eventData) {
-        if (this.isRightMouseDown) {
-            this.mouseMoveAmount = Input.mousePosition - this.lastMousePosition;
+        this.HandleMouseDragging(_eventData);
 
-            this.lastMousePosition = Input.mousePosition;
-        }
+        // Reset the last mouse position so we know when we start dragging again.
+        this.lastMousePosition.x = Mathf.NegativeInfinity;
     }
 
     #endregion
 
-    private bool SelectObject (Ray _mouseRay) {
+    private void OpenCloseLoadComponentMenu (bool _openState) {
+        // Get the transform for the loadComponentMenu to open/close it.
+        RectTransform loadComponentMenu = this.loadComponentFileMenuParent.transform as RectTransform;
 
-        RaycastHit mouseRayHit;
+        if (_openState) {
+            // If we're opening, pop the load menu out.
+            loadComponentMenu.offsetMin = new Vector2(0, 0);
+            loadComponentMenu.offsetMax = new Vector2(200, 0);
 
-        if (Physics.Raycast(_mouseRay, out mouseRayHit, 1000f)) {
-            // Get the object hit.
-            GameObject hit = mouseRayHit.collider.gameObject;
-
-            // Get the object's component.
-            Component compObj = hit.GetComponent<Component>();
-
-            // See if the object is a component.
-            if (compObj != null) {
-                // Reset the last object if there is one that was being hovered.
-                if (this.currentActiveComponent != null)
-                    this.currentActiveComponent.ResetComponentRender();
-
-                // Change the active object.
-                this.currentActiveObject = hit;
-                this.currentActiveComponent = compObj;
-
-                // Set that we have something selected.
-                this.IsAnObjectSelected = true;
-
-                // Find out how far away from the camera this object was.
-                this.selectedDistFromCamera = Vector3.Distance(this.mainSceneCamera.transform.position, hit.transform.position);
-                
-                // If we hit a component, set its color and that it's being selected.
-                this.currentActiveComponent.SetSelected(true);
-
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void UnselectObject () {
-        // Check to see if we currently have a component selected.
-        if (this.IsAnObjectSelected && this.currentActiveComponent != null) {
-            // Unselect it.
-            this.currentActiveComponent.SetSelected(false);
-            this.currentActiveComponent = null;
-            this.currentActiveObject = null;
-            this.IsAnObjectSelected = false;
-        }
-    }
-
-    public void ToggleLoadMenu (bool _toggle) {
-        if (_toggle) {
             // Clear all the current options in the scroll menu.
-            while (this.loadFileScrollObject.content.transform.childCount > 0) {
-                Transform temp = this.loadFileScrollObject.content.transform.GetChild(0);
+            while (this.loadComponentFileScrollObject.content.transform.childCount > 0) {
+                Transform temp = this.loadComponentFileScrollObject.content.transform.GetChild(0);
                 temp.SetParent(null);
                 GameObject.Destroy(temp.gameObject);
             }
 
             // Get all the loadable components.
-            List<GameObject> loadOptionsAvailable = this.manager.GetLoadableComponentOptions(this.loadFileOptionPrefab);
+            List<GameObject> loadOptionsAvailable = this.manager.GetLoadableComponentOptions(this.loadComponentFileOptionPrefab);
 
             // If the list isn't null, we have options to load.
             if (loadOptionsAvailable != null) {
                 // Get the scroll content transform.
-                Transform loadScrollContent = this.loadFileScrollObject.content.transform;
+                Transform loadScrollContent = this.loadComponentFileScrollObject.content.transform;
 
                 // How far down each option should be.
-                int curHeight = 5;
+                int curHeight = 2;
 
                 // Add each option to the transform.
                 foreach (GameObject obj in loadOptionsAvailable) {
                     RectTransform objTransform = obj.transform as RectTransform;
                     objTransform.SetParent(loadScrollContent);
-                    //objTransform.offsetMin = new Vector2(5, -65 - curHeight);
-                    //objTransform.offsetMax = new Vector2(-5, -curHeight);
+                    objTransform.offsetMin = new Vector2(2, -102 - curHeight);
+                    objTransform.offsetMax = new Vector2(-2, -curHeight);
                     objTransform.localScale = new Vector3(1, 1, 1);
-                    curHeight += 70;
+                    curHeight += 104;
                 }
             }
         }
-
-        this.loadFileMenuParent.SetActive(_toggle);
+        else {
+            // If we're closing, hide the load menu.
+            loadComponentMenu.offsetMin = new Vector2(-195, 0);
+            loadComponentMenu.offsetMax = new Vector2(5, 0);
+        }
     }
 
-    public void LoadOptionClicked (LoadOption _optionClicked) {
-        this.lastLoadOptionClicked = _optionClicked;
+    public void LoadComponentOptionClicked (LoadComponentOption _optionClicked) {
+        this.lastLoadComponentOptionClicked = _optionClicked;
 
         // Create the new component object.
-        GameObject newComp = GameObject.Instantiate(this.baseRenderedComponentPrefab, Vector3.zero, Quaternion.identity);
+        GameObject loadedComponentObject = null;
 
         // Load in the new component.
-        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath(), newComp);
+        string status = this.manager.LoadSelectedComponent(_optionClicked.GetLoadFilePath(), this.baseRenderedComponentPrefab, out loadedComponentObject, true);
 
         // If we failed during loading, delete the object.
         if (status == "FAILED") {
-            GameObject.Destroy(newComp);
+            Destroy(loadedComponentObject);
             return;
         }
         // Otherwise, spawn it into the world.
         
         // Clear the last clicked option.
-        this.lastLoadOptionClicked = null;
+        this.lastLoadComponentOptionClicked = null;
 
         // Make sure the continue load menu and the load menu is closed.
-        this.ToggleLoadMenu(false);
+        this.OpenCloseLoadComponentMenu(false);
+        this.isLoadComponentMenuOpen = false;
         
         // Set the componentObject's ui to this.
-        Component comp = newComp.GetComponent<Component>();
-        comp.SetUI(this);
+        Component loadedComponent = loadedComponentObject.GetComponent<Component>();
+        loadedComponent.SetUI(this);
 
         // Render the attachment points on the component.
-        comp.RenderAttachmentPoints(this.baseAttachmentPointPrefab);
+        loadedComponent.RenderAttachmentPoints(this.baseAttachmentPointPrefab);
 
         // Add the component to the list.
-        this.components.Add(comp);
+        this.components.Add(loadedComponent);
+    }
+
+    public void ToggleLoadComponentMenu () {
+        this.isLoadComponentMenuOpen = !this.isLoadComponentMenuOpen;
+        this.OpenCloseLoadComponentMenu(this.isLoadComponentMenuOpen);
+    }
+
+
+
+    // -----/ Assistance Functions /-----
+
+    private Vector3 CorrectEulerAngle (Vector3 _euler) {
+        for (int i = 0; i < 3; i++) {
+            if (_euler[i] > 180f)
+                _euler[i] -= 360f;
+            if (_euler[i] < -180f)
+                _euler[i] += 360f;
+        }
+
+        return _euler;
     }
 }
 

@@ -7,6 +7,9 @@ using UnityEngine;
 
 public class Component : MonoBehaviour {
 
+    // The empty root that this component's real object is attached to.
+    //  This is so we can nest objects without worrying about matrix transforms.
+    public GameObject rootObject;
 
     public string componentName;
 
@@ -23,10 +26,16 @@ public class Component : MonoBehaviour {
     // -----/ Forge Mode Parameters /-----
 
     // The list of all the attachment points that this component has.
-    public List<AttachmentPoint> attachPoints;
+    public List<AttachmentPoint> attacmenthPoints;
 
     // The list of the physical representations of the attachment points this component has.
-    public List<GameObject> attachPointObjects;
+    public List<GameObject> attachmentPointObjects;
+
+    // The attachment point on the parent that this component is attached to.
+    public AttachmentPoint parentAttachmentPoint;
+
+    // The attachment point on this component that is the root of its hierarchy.
+    public AttachmentPoint rootAttachmentPoint;
 
     // The original color that this object was when it was instantiated.
     private Color originalColor;
@@ -45,15 +54,29 @@ public class Component : MonoBehaviour {
 
     public bool IsComponentSnapped;
 
-    public Vector3 currentRotation;
+    // The rotation that the component wants to be when not snapped.
+    public Vector3 currentSetRotation;
+
+    // The current rotation that things like snapping or parents are assigning to this component.
+    public Vector3 currentRealRotation;
+
+    // The parent component that this component is attached to.
+    private Component parentComponent;
+
+    // The child component(s) that are attached to this componoent.
+    private List<Component> childComponents;
 
 
     // Function to initialize variables and lists.
     private void Init () {
         if (this.vertices == null) {
+            // Initialize design lists.
             this.vertices = new List<Vertex>();
             this.connections = new List<Connection>();
-            this.attachPoints = new List<AttachmentPoint>();
+
+            // Initialize forger lists.
+            this.attacmenthPoints = new List<AttachmentPoint>();
+            this.childComponents = new List<Component>();
             this.componentName = "New Component";
         }
     }
@@ -71,7 +94,8 @@ public class Component : MonoBehaviour {
     }
 
 
-    // -----/ Design Mode Functions /-----
+    // -----/ Design Mode Functions /----- //
+    #region DesignModeFunctions
 
     public void SetName (string _name) {
         this.componentName = _name;
@@ -90,7 +114,7 @@ public class Component : MonoBehaviour {
     }
 
     public void SetAttachmentPoints (List<AttachmentPoint> _attach) {
-        this.attachPoints = _attach;
+        this.attacmenthPoints = _attach;
     }
 
     public void SetComponent (List<Vertex> _verts, List<Connection> _conns, Mesh _m, string _name) {
@@ -111,16 +135,18 @@ public class Component : MonoBehaviour {
         this.componentName = "Unavailable";
     }
 
+    #endregion
 
     // -----/ Forging Mode Functions /-----
+    #region ForgingModeFunctions
 
-     /// <summary>
-     /// Sets up the component when it's first rendered into the forge.
-     /// </summary>
+    /// <summary>
+    /// Sets up the component when it's first rendered into the forge.
+    /// </summary>
     public void FirstRender () {
         this.originalColor = this.gameObject.GetComponent<Renderer>().material.color;
 
-        this.currentRotation = Vector3.zero;
+        this.currentSetRotation = Vector3.zero;
     }
 
     /// <summary>
@@ -137,14 +163,14 @@ public class Component : MonoBehaviour {
     /// <param name="_attachPointPrefab">The prefab that the attachment points should follow.</param>
     public void RenderAttachmentPoints (GameObject _attachPointPrefab) {
         // Go through each attachment point and create a new object at that location.
-        foreach (AttachmentPoint ap in this.attachPoints) {
+        foreach (AttachmentPoint ap in this.attacmenthPoints) {
             GameObject tempPoint = GameObject.Instantiate(_attachPointPrefab);
 
             // Add the object to the list.
-            this.attachPointObjects.Add(tempPoint);
+            this.attachmentPointObjects.Add(tempPoint);
 
             // Set the name.
-            tempPoint.name = this.componentName + ": Attachment Point #" + this.attachPointObjects.Count;
+            tempPoint.name = this.componentName + ": Attachment Point #" + this.attachmentPointObjects.Count;
 
             // Set the object as a child of the component.
             tempPoint.transform.SetParent(this.gameObject.transform);
@@ -177,6 +203,10 @@ public class Component : MonoBehaviour {
         if (this.IsSelected)
             this.gameObject.GetComponent<Renderer>().material.color = this.forgeUI.selectedColor;
 
+        // If we're still hovered but no longer selected, change to the hovered color.
+        if (!this.IsSelected && this.IsHovered)
+            this.gameObject.GetComponent<Renderer>().material.color = this.forgeUI.hoverColor;
+
         // If we're not hovered or selected, reset the color.
         if (!this.IsHovered && !this.IsSelected)
             this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
@@ -189,16 +219,77 @@ public class Component : MonoBehaviour {
         this.gameObject.GetComponent<Renderer>().material.color = this.originalColor;
     }
 
-    public void RotateComponentRender (Vector3 _rot) {
+    public void SetComponentRotation (Vector3 _rotation) {
         // Add to the rotation.
-        this.currentRotation += _rot;
+        this.currentSetRotation += _rotation;
 
         // Corrent the rotation to be within -180 to 180.
-        this.currentRotation = this.CorrectEulerAngle(this.currentRotation);
+        this.currentSetRotation = this.CorrectEulerAngle(this.currentSetRotation);
 
         // Rotate the component object if it's not snapped.
-        if (!this.IsComponentSnapped)
-            this.gameObject.transform.rotation = Quaternion.Euler(this.currentRotation);
+        if (!this.IsComponentSnapped) {
+            this.RotateComponent(this.currentSetRotation);
+        }
+    }
+
+    public void RotateComponent (Vector3 _rotation) {
+        // Set the real rotation of the component.
+        this.currentRealRotation = _rotation;
+        this.rootObject.transform.rotation = Quaternion.Euler(this.currentRealRotation);
+    }
+
+    private void RotateComponent (Vector3 _axis, float _angle) {
+        this.rootObject.transform.Rotate(_axis, _angle);
+        this.currentRealRotation = this.rootObject.transform.eulerAngles;
+    }
+
+    public void SetComponentPosition (Vector3 _newPosition) {
+        Vector3 moveAmount = this.rootObject.transform.position - _newPosition;
+        this.MoveComponent(moveAmount);
+    }
+
+    public void MoveComponent (Vector3 _moveAmount) {
+        this.rootObject.transform.position -= _moveAmount;
+    }
+
+    public int GetTotalChildCount () {
+        int childCount = this.childComponents.Count;
+        
+        // Go through each child and add to the count.
+        foreach (Component child in this.childComponents) {
+            childCount += child.GetTotalChildCount();
+        }
+
+        return childCount;
+    }
+
+    public int GetLocalChildCount () {
+        return this.childComponents.Count;
+    }
+
+    public List<Component> GetTotalChildren () {
+        List<Component> children = this.childComponents;
+
+        // Go through each child and add to the list.
+        foreach (Component child in this.childComponents) {
+            children.AddRange(child.GetTotalChildren());
+        }
+
+        return children;
+    }
+
+    public List<Component> GetChildren () {
+        return this.childComponents;
+    }
+
+    public void AddChildComponent (Component _child) {
+        this.childComponents.Add(_child);
+    }
+
+    public void RemoveChildComponent (Component _child) {
+        if (this.childComponents.Contains(_child)) {
+            this.childComponents.Remove(_child);
+        }
     }
 
     public void SnapComponent (AttachmentPoint _ourAttach, AttachmentPoint _otherAttach) {
@@ -207,37 +298,62 @@ public class Component : MonoBehaviour {
         Vector3 planeNormal = Vector3.Cross(_otherAttach.GetWorldDirection(), _ourAttach.GetWorldDirection());
 
         // Find the angle the component needs to rotate.
-        float ang = Vector3.Angle(_ourAttach.GetWorldDirection(), _otherAttach.GetWorldDirection());
+        float angle = Vector3.Angle(_ourAttach.GetWorldDirection(), _otherAttach.GetWorldDirection());
 
         // Rotate the component to align with the attachment point.
-        this.gameObject.transform.Rotate(planeNormal, (180f - ang));
+        this.RotateComponent(planeNormal, (180f - angle));
 
         // Move the component by the current difference between where the attachment position SHOULD be.
-        this.gameObject.transform.position -= (_ourAttach.GetWorldPosition() - _otherAttach.GetWorldPosition());
+        Vector3 moveAmount = (_ourAttach.GetWorldPosition() - _otherAttach.GetWorldPosition());
+        this.MoveComponent(moveAmount);
 
-        // Set this component to be attached.
+        // Set the attachment points as filled.
+        _ourAttach.SetAttached(true);
+        _otherAttach.SetAttached(true);
+
+        // Set our connections.
+        this.parentComponent = _otherAttach.RootComponent;
+        this.parentAttachmentPoint = _otherAttach;
+        this.rootAttachmentPoint = _ourAttach;
         this.IsComponentSnapped = true;
 
-        // Fill the attachment points.
-        _ourAttach.AttachTo(_otherAttach);
-        _otherAttach.AttachTo(_ourAttach);
+        // Make sure the other component knows we're now attached to it.
+        _otherAttach.RootComponent.AddChildComponent(this);
+
+        // Finally, add our root object as a child of theirs.
+        this.rootObject.transform.SetParent(_otherAttach.RootComponent.transform);
     }
 
-    public void UnSnapComponent () {
+    public void UnsnapComponent (GameObject _weaponRoot) {
+        // First, remove our transform from being a child.
+        this.rootObject.transform.SetParent(_weaponRoot.transform);
+
         // Reset the rotation to before it was snapped.
-        this.gameObject.transform.rotation = Quaternion.Euler(this.currentRotation);
+        this.RotateComponent(this.currentSetRotation);
 
-        // Unsnap every attachment point this component has.
-        foreach (AttachmentPoint ap in this.attachPoints) {
-            // If the point is attached, unsnap the point it's attached to.
-            if (ap.IsAttached) {
-                ap.attachedTo.UnAttach();
-                ap.UnAttach();
-            }
-        }
+        // Set the attachment points as filled.
+        this.rootAttachmentPoint.SetAttached(false);
+        this.parentAttachmentPoint.SetAttached(false);
 
+        // Make sure the other component knows we've unattached to it.
+        this.parentComponent.RemoveChildComponent(this);
+
+        // Reset our connections.
+        this.parentComponent = null;
+        this.parentAttachmentPoint = null;
+        this.rootAttachmentPoint = null;
         this.IsComponentSnapped = false;
     }
+
+    public void DeleteComponent () {
+        foreach (Component child in this.childComponents) {
+            child.DeleteComponent();
+        }
+
+        Destroy(this.rootObject);
+    }
+
+    #endregion
 
 
     // -----/ Saving and Loading /-----
@@ -293,7 +409,7 @@ public class Component : MonoBehaviour {
 
         // Save each attachment point to an ComponentAttachmentPointData object.
         List<AttachmentPointData> attachData = new List<AttachmentPointData>();
-        foreach (AttachmentPoint ap in this.attachPoints) {
+        foreach (AttachmentPoint ap in this.attacmenthPoints) {
             AttachmentPointData tempData = new AttachmentPointData();
             tempData.Location = ap.location;
             tempData.Normal = ap.normalDirection;
@@ -394,7 +510,7 @@ public class Component : MonoBehaviour {
             temp.SetLocation(tempData.Location);
             temp.SetNormalDirection(tempData.Normal);
             temp.SetComponent(this);
-            this.attachPoints.Add(temp);
+            this.attacmenthPoints.Add(temp);
         }
 
         // See if the mesh data exists.

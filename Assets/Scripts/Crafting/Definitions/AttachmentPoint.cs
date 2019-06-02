@@ -5,7 +5,7 @@ using UnityEngine;
 public class AttachmentPoint {
 
     // The component of this attachment point.
-    private Component rootComponent;
+    public Component RootComponent { get; private set; }
 
     // The location this attachment point is at in local space.
     public Vector3 location { get; private set; }
@@ -24,7 +24,7 @@ public class AttachmentPoint {
     
 
     public void SetComponent (Component _root) {
-        this.rootComponent = _root;
+        this.RootComponent = _root;
     }
 
     public void SetLocation (Vector3 _loc) {
@@ -36,22 +36,16 @@ public class AttachmentPoint {
     }
 
     public Vector3 GetWorldPosition () {
-        return this.rootComponent.gameObject.transform.localToWorldMatrix.MultiplyPoint3x4(this.location);
+        return this.RootComponent.gameObject.transform.localToWorldMatrix.MultiplyPoint3x4(this.location);
     }
 
     public Vector3 GetWorldDirection () {
-        Matrix4x4 matrix = Matrix4x4.Rotate(this.rootComponent.transform.rotation);
+        Matrix4x4 matrix = Matrix4x4.Rotate(this.RootComponent.transform.rotation);
         return matrix.MultiplyPoint(this.normalDirection);
     }
 
-    public void AttachTo (AttachmentPoint _other) {
-        this.attachedTo = _other;
-        this.IsAttached = true;
-    }
-
-    public void UnAttach () {
-        this.attachedTo = null;
-        this.IsAttached = false;
+    public void SetAttached (bool _isAttached) {
+        this.IsAttached = _isAttached;
     }
 
     private Vector3 CorrectEulerAngle (Vector3 _euler) {
