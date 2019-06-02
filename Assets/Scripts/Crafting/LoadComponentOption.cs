@@ -5,7 +5,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class LoadOption : MonoBehaviour {
+public class LoadComponentOption : MonoBehaviour {
 
     // The UI text of the component's file name.
     public Text componentNameText;
@@ -64,10 +64,13 @@ public class LoadOption : MonoBehaviour {
     }
 
     public void LoadOptionClicked () {
-        // Find the main designerUI.
+        // Find the UI object in the scene.
         DesignerUI dui = FindObjectOfType<DesignerUI>();
-
+        ForgerUI fui = FindObjectOfType<ForgerUI>();
         // Tell it that this option was clicked.
-        dui.LoadOptionClicked(this);
+        if (dui != null)
+            dui.LoadComponentOptionClicked(this);
+        else if (fui != null)
+            fui.LoadComponentOptionClicked(this);
     }
 }

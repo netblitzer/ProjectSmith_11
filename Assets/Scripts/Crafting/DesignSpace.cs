@@ -4,9 +4,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class DesignSpace : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IDragHandler, IBeginDragHandler, IEndDragHandler {
+public class DesignSpace : MonoBehaviour, IPointerClickHandler, IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler, IDragHandler, IBeginDragHandler, IEndDragHandler {
 
-    public DesignerUI mainUI;
+    // Eventually it would be good to make these two UI managers to inherit some "UIManager" interface.
+    public IUIManager mainUI;
+
+    private void Awake () {
+        this.mainUI = GameObject.FindGameObjectWithTag("UIManager").GetComponent<IUIManager>();
+    } 
 
     public void OnPointerClick (PointerEventData _eventData) {
         if (_eventData.button == PointerEventData.InputButton.Left)
@@ -14,15 +19,13 @@ public class DesignSpace : MonoBehaviour, IPointerClickHandler, IPointerEnterHan
         else if (_eventData.button == PointerEventData.InputButton.Right)
             mainUI.HandleRightClick(_eventData);
     }
-    
-    public void OnPointerUp (PointerEventData _eventData) {
-        if (_eventData.button == PointerEventData.InputButton.Left)
-            mainUI.EnableLeftMouseDown(false);
-    }
 
     public void OnPointerDown (PointerEventData _eventData) {
-        if (_eventData.button == PointerEventData.InputButton.Left)
-            mainUI.EnableLeftMouseDown(true);
+        mainUI.OnPointerDown(_eventData);
+    }
+
+    public void OnPointerUp (PointerEventData _eventData) {
+        mainUI.OnPointerUp(_eventData);
     }
 
     public void OnPointerEnter (PointerEventData _eventData) {

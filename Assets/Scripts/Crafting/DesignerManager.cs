@@ -20,13 +20,13 @@ public class DesignerManager : MonoBehaviour {
 
     /// <summary>
     /// The connections that make up the completed shape starting with the starting point.
-    /// This list is a list of all RIGHT connections (meaning the current point to the next).
-    /// If this list is 4 long, that means the first connection is from 0 to 1.
+    ///  This list is a list of all RIGHT connections (meaning the current point to the next).
+    ///  If this list is 4 long, that means the first connection is from 0 to 1.
     /// </summary>
     private List<Connection> polygonConnections;
 
     // The script that will expand the polygon shape into a mesh. This will just feed back a list
-    // of final points and indices for us to work with.
+    //  of final points and indices for us to work with.
     private MeshExpansion expander;
 
     private List<int> meshIndices;
@@ -35,7 +35,7 @@ public class DesignerManager : MonoBehaviour {
 
     private string componentBasePath = "/SaveData/Components/";
 
-    private Component currentComponent;
+    public Component currentComponent;
 
     private bool changesSinceLastSave;
 
@@ -162,6 +162,15 @@ public class DesignerManager : MonoBehaviour {
                 DebugLines.Instance.AddLine(c.First.Location, c.Second.Location, new Color(0, 1, 1));
             else if (c.Edge == EdgeType.SHARP)
                 DebugLines.Instance.AddLine(c.First.Location, c.Second.Location, new Color(0.8f, 0, 0.8f));
+
+            if (c.ConnectionCanBeAttachedTo) {
+                Vector2 loc = c.MidPoint;
+
+                DebugLines.Instance.AddLine(new Vector2(loc.x - 0.2f, loc.y), new Vector2(loc.x, loc.y + 0.2f), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x, loc.y + 0.2f), new Vector2(loc.x + 0.2f, loc.y), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x + 0.2f, loc.y), new Vector2(loc.x, loc.y - 0.2f), Color.blue);
+                DebugLines.Instance.AddLine(new Vector2(loc.x, loc.y - 0.2f), new Vector2(loc.x - 0.2f, loc.y), Color.blue);
+            }
         }
     }
 
@@ -455,6 +464,8 @@ public class DesignerManager : MonoBehaviour {
         if (curLine != -1) {
             this.currentComponent.connections[curLine].Edge = _type;
 
+            this.currentComponent.connections[curLine].CheckIfCanBeAttachedTo();
+
             // Set that there has been a change since the last save.
             this.changesSinceLastSave = true;
         }
@@ -685,9 +696,13 @@ public class DesignerManager : MonoBehaviour {
             // First, sort all the vertices and get a final list for the polygon shape.
             if (this.SortVertices()) {
                 // If sorting succeeded, then try to expand the shape.
-                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices)) {
+                if (this.expander.CreateMesh(this.polygonVertices, this.polygonConnections, 1.0f, 30f, out this.meshIndices, out this.meshVertices, out this.currentComponent.attacmenthPoints)) {
                     // If the expansion succeeded, we can toggle the mode and switch to displaying the component.
                     this.isCurrentlyExpanded = true;
+
+                    // Make sure each attachment point is correctly set.
+                    foreach (AttachmentPoint ap in this.currentComponent.attacmenthPoints)
+                        ap.SetComponent(this.currentComponent);
 
                     // Create a new mesh for the object.
                     Mesh m = new Mesh();
@@ -860,7 +875,7 @@ public class DesignerManager : MonoBehaviour {
 
             // Create the new object and get its script.
             GameObject temp = GameObject.Instantiate(_prefab);
-            LoadOption tempLoadOption = temp.GetComponent<LoadOption>();
+            LoadComponentOption tempLoadOption = temp.GetComponent<LoadComponentOption>();
 
             // Set up the script.
             if (tempLoadOption.SetFilePath(path))

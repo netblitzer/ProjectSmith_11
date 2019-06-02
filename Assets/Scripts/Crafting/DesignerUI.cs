@@ -4,8 +4,9 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using System;
 
-public class DesignerUI : MonoBehaviour {
+public class DesignerUI : MonoBehaviour, IUIManager {
 
     // -----/ Major Scene Objects /-----
 
@@ -75,12 +76,13 @@ public class DesignerUI : MonoBehaviour {
 
     public GameObject loadFileUnsavedChangesParent;
 
-    private LoadOption lastLoadOptionClicked;
+    private LoadComponentOption lastLoadOptionClicked;
+
+
 
 	// Use this for initialization
 	void Start () {
         // Initialize the manager.
-        this.manager = FindObjectOfType<DesignerManager>();
         this.ToggleExpand(false);
 
         // Make sure all menus are closed.
@@ -102,7 +104,6 @@ public class DesignerUI : MonoBehaviour {
         this.designModeText.text = "Mode: " + this.currentMode;
 
         this.isCurrentlyHovering = false;
-        this.isLeftMouseDown = false;
     }
 	
 	// Update is called once per frame
@@ -110,7 +111,7 @@ public class DesignerUI : MonoBehaviour {
         this.CheckIfRightClickMenuShouldClose();
 
         if (this.isCurrentlyHovering) {
-            this.HandleMouseHovering();
+            this.HandleMouseHovering(null);
         }
 	}
 
@@ -118,7 +119,7 @@ public class DesignerUI : MonoBehaviour {
     /// A function that handles what happens when the left mouse button is CLICKED on the design space.
     /// </summary>
     public void HandleLeftClick (PointerEventData _eventData) {
-        Vector2 worldPos = designerCamera.ScreenToWorldPoint(_eventData.position);
+        Vector2 worldPos = this.designerCamera.ScreenToWorldPoint(_eventData.position);
 
         switch (this.currentMode) {
             case DesignMode.ADD:
@@ -189,16 +190,25 @@ public class DesignerUI : MonoBehaviour {
         }
     }
 
+    public void OnPointerDown (PointerEventData _eventData) {
+        //throw new NotImplementedException();
+    }
+
+    public void OnPointerUp (PointerEventData _eventData) {
+        //throw new NotImplementedException();
+    }
+
     public void EnableHovering (bool _enabled) {
         this.isCurrentlyHovering = _enabled;
     }
 
-    public void EnableLeftMouseDown (bool _isDown) {
-        this.isLeftMouseDown = _isDown;
-    }
+    public void HandleMouseHovering (PointerEventData _eventData) {
+        Vector2 worldPos;
+        if (_eventData != null)
+            worldPos = this.designerCamera.ScreenToWorldPoint(_eventData.position);
+        else
+            worldPos = this.designerCamera.ScreenToWorldPoint(Input.mousePosition);
 
-    public void HandleMouseHovering () {
-        Vector2 worldPos = designerCamera.ScreenToWorldPoint(Input.mousePosition);
 
         switch (this.currentMode) {
             case DesignMode.ADD:
@@ -383,7 +393,7 @@ public class DesignerUI : MonoBehaviour {
         this.loadFileMenuParent.SetActive(_toggle);
     }
 
-    public void LoadOptionClicked (LoadOption _optionClicked) {
+    public void LoadComponentOptionClicked (LoadComponentOption _optionClicked) {
         this.lastLoadOptionClicked = _optionClicked;
 
         string status = this.manager.LoadSelectedOption(_optionClicked.GetLoadFilePath(), false);
